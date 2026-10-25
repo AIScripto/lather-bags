@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState, type FormEvent } from "react";
+import { Plus } from "lucide-react";
 import craft from "@/assets/craft.jpg";
 import { Parallax, Reveal } from "@/components/Reveal";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -16,29 +19,102 @@ export const Route = createFileRoute("/contact")({
 
 const faqs = [
   [
-    "How long does shipping take?",
-    "Orders leave the workshop within two days and arrive in 3–7 working days.",
+    "How long does delivery take?",
+    "Orders leave the workshop within two working days and arrive in 3–7 working days after that. Shipping is free and tracked.",
+  ],
+  [
+    "Will I pay import duty?",
+    "Prices are in US dollars and include shipping. Depending on your country, local import duty may be collected on delivery; the carrier will tell you the amount before it arrives.",
+  ],
+  [
+    "Can I return a bag?",
+    "Yes, within 60 days, for any reason, as long as it hasn't been monogrammed. We send a prepaid label.",
+  ],
+  [
+    "How do lifetime repairs work?",
+    "Write to us with a photo. We send a prepaid label and return your bag mended, free, usually within two weeks.",
+  ],
+  [
+    "Will my laptop fit?",
+    "Every product page lists the exact dimensions and the largest laptop that fits. If you're between sizes, send us the model and we'll check.",
   ],
   [
     "Can I visit the workshop?",
     "Yes. Drop in Monday to Saturday, or book a guided tour on the first Friday of each month.",
   ],
-  [
-    "How do lifetime repairs work?",
-    "Write to us with a photo. We'll send a prepaid label and return your bag mended, free.",
-  ],
 ];
 
+type Field = "name" | "email" | "message";
+const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
 function Contact() {
+  const [values, setValues] = useState({ name: "", email: "", order: "", message: "" });
+  const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
+  const [sent, setSent] = useState(false);
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const next: Partial<Record<Field, string>> = {};
+    if (!values.name.trim()) next.name = "Tell us what to call you.";
+    if (!emailOk(values.email))
+      next.email = "Enter an email we can reply to, like name@example.com.";
+    if (values.message.trim().length < 10)
+      next.message = "Add a little more detail so we can help.";
+    setErrors(next);
+    if (Object.keys(next).length === 0) setSent(true);
+  };
+
+  const field = (key: Field | "order", label: string, multiline = false) => {
+    const error = key === "order" ? undefined : errors[key];
+    const props = {
+      id: `contact-${key}`,
+      value: values[key],
+      onChange: (e: { target: { value: string } }) => {
+        setValues((v) => ({ ...v, [key]: e.target.value }));
+        if (error) setErrors((x) => ({ ...x, [key]: undefined }));
+      },
+      "aria-invalid": !!error,
+      "aria-describedby": error ? `contact-${key}-error` : undefined,
+      className: cn(
+        "mt-2 w-full border-b bg-transparent py-3 outline-none transition-colors focus:border-primary",
+        error && "border-destructive",
+      ),
+    };
+    return (
+      <div>
+        <label htmlFor={props.id} className="text-sm font-medium">
+          {label}
+        </label>
+        {multiline ? (
+          <textarea rows={4} {...props} className={cn(props.className, "resize-none")} />
+        ) : (
+          <input
+            type={key === "email" ? "email" : "text"}
+            autoComplete={key === "email" ? "email" : key === "name" ? "name" : "off"}
+            {...props}
+          />
+        )}
+        {error && (
+          <p id={`contact-${key}-error`} className="mt-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
-      <section className="mx-auto max-w-[1500px] px-6 pb-16 pt-40 md:px-10">
-        <p className="eyebrow animate-rise text-primary">Contact</p>
-        <h1 className="mt-4 animate-rise font-display text-6xl leading-none [animation-delay:120ms] md:text-9xl">
-          Say <em className="text-primary">hello</em>.
+      <section className="mx-auto max-w-[1500px] px-4 pb-16 pt-32 md:px-10 md:pt-40">
+        <h1 className="animate-rise font-display text-6xl leading-none md:text-8xl">
+          Write to the workshop
         </h1>
+        <p className="mt-5 max-w-xl animate-rise text-lg text-muted-foreground [animation-delay:120ms]">
+          Questions about sizing, a repair, or a bag you'd like made. A maker replies within one
+          working day.
+        </p>
       </section>
-      <section className="mx-auto grid max-w-[1500px] gap-12 px-6 pb-28 md:grid-cols-2 md:gap-16 md:px-10">
+      <section className="mx-auto grid max-w-[1500px] gap-12 px-4 pb-28 md:grid-cols-2 md:gap-16 md:px-10">
         <div>
           <Reveal className="grid gap-8 border-y py-10 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-3">
             {[
@@ -47,58 +123,58 @@ function Contact() {
               ["Hours", "Mon–Sat, 10:00–18:00"],
             ].map(([h, t]) => (
               <div key={h}>
-                <p className="eyebrow text-primary">{h}</p>
-                <p className="mt-2 text-sm text-muted-foreground">{t}</p>
+                <p className="text-sm text-muted-foreground">{h}</p>
+                <p className="mt-1">{t}</p>
               </div>
             ))}
           </Reveal>
-          <Parallax src={craft} alt="Inside the workshop" className="mt-10 aspect-[4/3]" />
+          <Parallax
+            src={craft}
+            alt="Inside the workshop"
+            className="mt-10 aspect-[4/3] rounded-2xl"
+            speed={0.06}
+          />
         </div>
         <Reveal delay={150}>
-          <form onSubmit={(e) => e.preventDefault()} className="space-y-8 bg-card p-8 md:p-12">
-            <h2 className="font-display text-3xl md:text-4xl">
-              Write to the <em>workshop</em>
-            </h2>
-            {["Name", "Email", "Order number (optional)"].map((l) => (
-              <label key={l} className="block">
-                <span className="eyebrow text-muted-foreground">{l}</span>
-                <input className="mt-2 w-full border-b bg-transparent py-3 outline-none transition-colors focus:border-primary" />
-              </label>
-            ))}
-            <label className="block">
-              <span className="eyebrow text-muted-foreground">Message</span>
-              <textarea
-                rows={4}
-                className="mt-2 w-full resize-none border-b bg-transparent py-3 outline-none transition-colors focus:border-primary"
-              />
-            </label>
-            <button className="w-full bg-primary py-4 text-sm font-semibold uppercase tracking-widest text-primary-foreground transition-transform hover:-translate-y-1">
-              Send message
-            </button>
-          </form>
+          {sent ? (
+            <div className="rounded-2xl bg-card p-8 md:p-12" role="status">
+              <h2 className="font-display text-4xl">Thank you, {values.name.split(" ")[0]}.</h2>
+              <p className="mt-4 leading-relaxed text-muted-foreground">
+                Your note is with the workshop. A maker will reply to {values.email} within one
+                working day.
+              </p>
+            </div>
+          ) : (
+            <form
+              onSubmit={submit}
+              noValidate
+              className="space-y-8 rounded-2xl bg-card p-8 md:p-12"
+            >
+              {field("name", "Name")}
+              {field("email", "Email")}
+              {field("order", "Order number (optional)")}
+              {field("message", "Message", true)}
+              <button className="min-h-12 w-full rounded-full bg-primary text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90">
+                Send message
+              </button>
+            </form>
+          )}
         </Reveal>
       </section>
-      <section className="border-t bg-card px-6 py-28 md:px-10">
+      <section className="border-t bg-card px-4 py-20 md:px-10 md:py-28">
         <div className="mx-auto grid max-w-[1500px] gap-12 md:grid-cols-[1fr_1.4fr]">
           <Reveal>
-            <p className="eyebrow text-primary">Questions</p>
-            <h2 className="mt-3 font-display text-5xl md:text-6xl">
-              Good to <em>know</em>.
-            </h2>
+            <h2 className="font-display text-5xl md:text-6xl">Before you ask</h2>
           </Reveal>
           <div className="border-b">
-            {faqs.map(([q, a], i) => (
-              <Reveal key={q} delay={i * 100}>
-                <details className="group border-t py-6">
-                  <summary className="flex cursor-pointer list-none items-center justify-between font-display text-2xl">
-                    {q}
-                    <span className="text-primary transition-transform group-open:rotate-45">
-                      +
-                    </span>
-                  </summary>
-                  <p className="mt-4 leading-relaxed text-muted-foreground">{a}</p>
-                </details>
-              </Reveal>
+            {faqs.map(([q, a]) => (
+              <details key={q} className="group border-t py-6">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-6 font-display text-2xl">
+                  {q}
+                  <Plus className="h-5 w-5 shrink-0 text-primary transition-transform group-open:rotate-45" />
+                </summary>
+                <p className="mt-4 max-w-[60ch] leading-relaxed text-muted-foreground">{a}</p>
+              </details>
             ))}
           </div>
         </div>

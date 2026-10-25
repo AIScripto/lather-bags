@@ -1,71 +1,61 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { products, type Product } from "./products";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { findProduct, type Product } from "./products";
 
 export const themes = [
-  {
-    id: "saddle",
-    name: "Saddle",
-    tone: "light",
-    description: "Alabaster porcelain & rich cognac",
-    swatch: ["oklch(0.985 0.004 80)", "oklch(0.50 0.13 46)"],
-  },
-  {
-    id: "midnight",
-    name: "Midnight",
-    tone: "dark",
-    description: "Smoky obsidian & burnished brass",
-    swatch: ["oklch(0.17 0.008 70)", "oklch(0.78 0.12 85)"],
-  },
-  {
-    id: "espresso",
-    name: "Espresso",
-    tone: "dark",
-    description: "Velvet dark roast & champagne gold",
-    swatch: ["oklch(0.14 0.015 45)", "oklch(0.74 0.13 75)"],
-  },
-  {
-    id: "bourbon",
-    name: "Bourbon",
-    tone: "light",
-    description: "Golden amber whiskey & warm camel",
-    swatch: ["oklch(0.975 0.018 78)", "oklch(0.52 0.15 58)"],
-  },
-  {
-    id: "olive",
-    name: "Olive Field",
-    tone: "light",
-    description: "Sage botanical mist & forest bridle",
-    swatch: ["oklch(0.96 0.008 105)", "oklch(0.44 0.08 125)"],
-  },
-  {
-    id: "oxblood",
-    name: "Oxblood",
-    tone: "light",
-    description: "Royal bordeaux & aged parchment",
-    swatch: ["oklch(0.965 0.008 70)", "oklch(0.38 0.12 20)"],
-  },
+  { id: "saddle", name: "Saddle", tone: "light" },
+  { id: "espresso", name: "Espresso", tone: "dark" },
 ] as const;
 
 export type ThemeId = (typeof themes)[number]["id"] | "system";
+
+/** Older builds offered six palettes; fold any saved choice into the two that remain. */
+export function normalizeTheme(saved: string | null): ThemeId {
+  if (saved === "espresso" || saved === "midnight") return "espresso";
+  if (!saved || saved === "system") return "system";
+  return "saddle";
+}
+
+export type Foil = "gold" | "silver" | "blind";
+export type Monogram = { initials: string; foil: Foil };
+
+export const foils: { id: Foil; label: string }[] = [
+  { id: "gold", label: "Gold foil" },
+  { id: "silver", label: "Silver foil" },
+  { id: "blind", label: "Blind deboss" },
+];
 
 export type CartItem = {
   product: Product;
   color: string;
   quantity: number;
+  monogram?: Monogram | undefined;
+};
+
+export const lineKey = (i: Pick<CartItem, "product" | "color" | "monogram">) =>
+  [i.product.slug, i.color, i.monogram?.initials ?? "", i.monogram?.foil ?? ""].join("|");
+
+type StoredLine = {
+  slug: string;
+  color: string;
+  quantity: number;
+  monogram?: Monogram | undefined;
 };
 
 type Ctx = {
-  theme: string;
-  effectiveTheme: string;
+  theme: ThemeId;
+  effectiveTheme: "saddle" | "espresso";
   isDark: boolean;
-  setTheme: (t: string) => void;
+  setTheme: (t: ThemeId) => void;
   toggleColorMode: () => void;
   cartOpen: boolean;
   setCartOpen: (o: boolean) => void;
+  savedOpen: boolean;
+  setSavedOpen: (o: boolean) => void;
   cartItems: CartItem[];
-  addToCart: (product: Product, color?: string) => void;
-  removeFromCart: (slug: string, color: string) => void;
-  updateQuantity: (slug: string, color: string, delta: number) => void;
+  addToCart: (product: Product, color?: string, monogram?: Monogram) => void;
+  removeFromCart: (key: string) => void;
+  updateQuantity: (key: string, delta: number) => void;
+  clearCart: () => void;
   cartCount: number;
   cartSubtotal: number;
   favorites: string[];
@@ -74,107 +64,124 @@ type Ctx = {
 
 const StoreCtx = createContext<Ctx | null>(null);
 
+function readJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // storage unavailable (private mode); state still works for this visit
+  }
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<string>("saddle");
-  const [systemIsDark, setSystemIsDark] = useState<boolean>(false);
+  const [theme, setThemeState] = useState<ThemeId>("saddle");
+  const [systemIsDark, setSystemIsDark] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
-  const [cartItems, setCartItems] = useState<CartItem[]>(() => [
-    { product: products[0]!, color: "Cognac", quantity: 1 },
-    { product: products[1]!, color: "Chestnut", quantity: 1 },
-  ]);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const hydrated = useRef(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("hh-theme");
-    if (saved) setThemeState(saved);
+    setThemeState(normalizeTheme(localStorage.getItem("hh-theme")));
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     setSystemIsDark(media.matches);
     const listener = (e: MediaQueryListEvent) => setSystemIsDark(e.matches);
     media.addEventListener("change", listener);
 
-    const savedFavs = localStorage.getItem("hh-favs");
-    if (savedFavs) {
-      try {
-        setFavorites(JSON.parse(savedFavs));
-      } catch {
-        // ignore
-      }
-    }
+    setFavorites(readJson<string[]>("hh-favs", []).filter((s) => findProduct(s)));
+    setCartItems(
+      readJson<StoredLine[]>("hh-cart", []).flatMap((l) => {
+        const product = findProduct(l.slug);
+        return product && l.quantity > 0
+          ? [{ product, color: l.color, quantity: l.quantity, monogram: l.monogram }]
+          : [];
+      }),
+    );
+    hydrated.current = true;
     return () => media.removeEventListener("change", listener);
   }, []);
 
-  const effectiveTheme = theme === "system" ? (systemIsDark ? "midnight" : "saddle") : theme;
-  const isDark = effectiveTheme === "midnight" || effectiveTheme === "espresso";
+  useEffect(() => {
+    if (!hydrated.current) return;
+    writeJson(
+      "hh-cart",
+      cartItems.map<StoredLine>((i) => ({
+        slug: i.product.slug,
+        color: i.color,
+        quantity: i.quantity,
+        monogram: i.monogram,
+      })),
+    );
+  }, [cartItems]);
+
+  const effectiveTheme = theme === "system" ? (systemIsDark ? "espresso" : "saddle") : theme;
+  const isDark = effectiveTheme === "espresso";
 
   useEffect(() => {
     document.documentElement.dataset["theme"] = effectiveTheme;
   }, [effectiveTheme]);
 
-  const setTheme = (t: string) => {
+  const setTheme = (t: ThemeId) => {
     setThemeState(t);
-    localStorage.setItem("hh-theme", t);
-  };
-
-  const toggleColorMode = () => {
-    if (isDark) {
-      setTheme("saddle");
-    } else {
-      setTheme("midnight");
+    try {
+      localStorage.setItem("hh-theme", t);
+    } catch {
+      // ignore
     }
   };
 
-  const addToCart = (product: Product, color?: string) => {
-    const selectedColor = color || product.colors[0] || "Standard";
-    setCartItems((prev) => {
-      const existing = prev.find(
-        (item) => item.product.slug === product.slug && item.color === selectedColor,
-      );
-      if (existing) {
-        return prev.map((item) =>
-          item.product.slug === product.slug && item.color === selectedColor
-            ? { ...item, quantity: item.quantity + 1 }
-            : item,
-        );
-      }
-      return [...prev, { product, color: selectedColor, quantity: 1 }];
-    });
+  const toggleColorMode = () => setTheme(isDark ? "saddle" : "espresso");
+
+  const addToCart = (product: Product, color?: string, monogram?: Monogram) => {
+    const line: CartItem = {
+      product,
+      color: color || product.colors[0] || "Standard",
+      quantity: 1,
+      monogram: monogram?.initials ? monogram : undefined,
+    };
+    const key = lineKey(line);
+    setCartItems((prev) =>
+      prev.some((i) => lineKey(i) === key)
+        ? prev.map((i) => (lineKey(i) === key ? { ...i, quantity: i.quantity + 1 } : i))
+        : [...prev, line],
+    );
+    setSavedOpen(false);
     setCartOpen(true);
   };
 
-  const removeFromCart = (slug: string, color: string) => {
-    setCartItems((prev) =>
-      prev.filter((item) => !(item.product.slug === slug && item.color === color)),
-    );
-  };
+  const removeFromCart = (key: string) =>
+    setCartItems((prev) => prev.filter((i) => lineKey(i) !== key));
 
-  const updateQuantity = (slug: string, color: string, delta: number) => {
+  const updateQuantity = (key: string, delta: number) =>
     setCartItems((prev) =>
-      prev
-        .map((item) => {
-          if (item.product.slug === slug && item.color === color) {
-            const nextQty = item.quantity + delta;
-            return nextQty > 0 ? { ...item, quantity: nextQty } : null;
-          }
-          return item;
-        })
-        .filter((item): item is CartItem => item !== null),
+      prev.flatMap((i) => {
+        if (lineKey(i) !== key) return [i];
+        const quantity = i.quantity + delta;
+        return quantity > 0 ? [{ ...i, quantity }] : [];
+      }),
     );
-  };
+
+  const clearCart = () => setCartItems([]);
 
   const toggleFavorite = (slug: string) => {
     setFavorites((prev) => {
       const next = prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug];
-      try {
-        localStorage.setItem("hh-favs", JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      writeJson("hh-favs", next);
       return next;
     });
   };
 
-  const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-  const cartSubtotal = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+  const cartCount = cartItems.reduce((acc, i) => acc + i.quantity, 0);
+  const cartSubtotal = cartItems.reduce((acc, i) => acc + i.product.price * i.quantity, 0);
 
   return (
     <StoreCtx.Provider
@@ -186,10 +193,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toggleColorMode,
         cartOpen,
         setCartOpen,
+        savedOpen,
+        setSavedOpen,
         cartItems,
         addToCart,
         removeFromCart,
         updateQuantity,
+        clearCart,
         cartCount,
         cartSubtotal,
         favorites,

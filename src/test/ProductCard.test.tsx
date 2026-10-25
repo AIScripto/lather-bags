@@ -26,7 +26,7 @@ vitest.mock("@tanstack/react-router", () => ({
 describe("ProductCard Component", () => {
   const sampleProduct = products[0]!;
 
-  it("renders product name, price, category, and review score", () => {
+  it("renders product name, price, category, and dimensions", () => {
     render(
       <StoreProvider>
         <ProductCard p={sampleProduct} />
@@ -36,7 +36,8 @@ describe("ProductCard Component", () => {
     expect(screen.getByText(sampleProduct.name)).toBeInTheDocument();
     expect(screen.getByText(`$${sampleProduct.price}`)).toBeInTheDocument();
     expect(screen.getByText(sampleProduct.category)).toBeInTheDocument();
-    expect(screen.getByText(/4\.9 · 128 reviews/i)).toBeInTheDocument();
+    expect(screen.getByText("38 × 29 × 11 cm")).toBeInTheDocument();
+    expect(screen.queryByText(/reviews/i)).not.toBeInTheDocument();
   });
 
   it("renders wishlist save button with accessible label", () => {

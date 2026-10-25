@@ -1,19 +1,39 @@
-import { createFileRoute, Outlet, useChildMatches } from "@tanstack/react-router";
-import { useState } from "react";
-import { categories, products } from "@/lib/products";
+import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
+import { collections, filterProducts, type Collection } from "@/lib/products";
 import { ProductCard } from "@/components/ProductCard";
 import { Reveal } from "@/components/Reveal";
 import { cn } from "@/lib/utils";
 
+const filters = [
+  { id: undefined, label: "All" },
+  { id: "new", label: "New" },
+  ...collections.map((c) => ({ id: c.id, label: c.label })),
+] as const;
+
+type Filter = Collection | "new";
+const sorts = ["featured", "price-asc", "price-desc"] as const;
+type Sort = (typeof sorts)[number];
+
+export type BagsSearch = { collection?: Filter | undefined; sort?: Sort | undefined };
+
+const isFilter = (v: unknown): v is Filter => v === "new" || collections.some((c) => c.id === v);
+
 export const Route = createFileRoute("/bags")({
+  validateSearch: (s: Record<string, unknown>): BagsSearch => ({
+    collection: isFilter(s["collection"]) ? s["collection"] : undefined,
+    sort:
+      sorts.includes(s["sort"] as Sort) && s["sort"] !== "featured"
+        ? (s["sort"] as Sort)
+        : undefined,
+  }),
   head: () => ({
     meta: [
-      { title: "Bags — Hollow & Hide" },
+      { title: "Shop — Hollow & Hide" },
       {
         name: "description",
-        content: "Shop handcrafted leather satchels, briefcases, totes, backpacks and travel bags.",
+        content: "Handcrafted leather briefcases, satchels, backpacks, holdalls and small goods.",
       },
-      { property: "og:title", content: "Bags — Hollow & Hide" },
+      { property: "og:title", content: "Shop — Hollow & Hide" },
       { property: "og:description", content: "The full collection of handcrafted leather bags." },
     ],
   }),
@@ -26,53 +46,89 @@ function BagsLayout() {
 }
 
 function Bags() {
-  const [cat, setCat] = useState("All");
-  const [sortBy, setSortBy] = useState<"featured" | "price-asc" | "price-desc">("featured");
-
-  const filtered = cat === "All" ? products : products.filter((p) => p.category === cat);
-  const list = [...filtered].sort((a, b) => {
-    if (sortBy === "price-asc") return a.price - b.price;
-    if (sortBy === "price-desc") return b.price - a.price;
-    return 0;
-  });
+  const { collection, sort } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const list = filterProducts(collection, sort);
+  const active = collections.find((c) => c.id === collection);
+  const heading =
+    collection === "new" ? "New this season" : active ? active.label : "The collection";
+  const line =
+    collection === "new"
+      ? "Six new bags and the small goods that finish a set. Drawn here from the pattern table while the studio photographs them."
+      : active
+        ? active.line
+        : "Full-grain leather, cut and stitched by one pair of hands, and mended free for life.";
 
   return (
-    <section className="mx-auto max-w-[1500px] px-6 pb-28 pt-40 md:px-10">
-      <p className="eyebrow animate-rise text-primary">Collection · {products.length} pieces</p>
-      <h1 className="mt-4 animate-rise font-display text-7xl leading-none [animation-delay:120ms] md:text-[10rem]">
-        The <em>Bags</em>
-      </h1>
-      <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-y py-5">
-        <div className="flex flex-wrap gap-2.5">
-          {categories.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCat(c)}
-              className={cn(
-                "rounded-full border px-4 py-2 text-xs font-medium transition-all shadow-xs",
-                cat === c
-                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                  : "border-border/80 hover:border-foreground/60 bg-card/60",
-              )}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as "featured" | "price-asc" | "price-desc")}
-          aria-label="Sort collection by"
-          className="rounded-xl border border-border/80 bg-card px-3.5 py-2 text-xs font-medium uppercase tracking-wider outline-none transition-colors focus:border-primary shadow-xs"
+    <section className="mx-auto max-w-[1500px] px-4 pb-28 pt-28 md:px-10 md:pt-36">
+      <h1 className="font-display text-5xl leading-none md:text-7xl">{heading}</h1>
+      <p className="mt-4 max-w-xl text-muted-foreground">{line}</p>
+
+      <div className="sticky top-[65px] z-20 -mx-4 mt-8 flex items-center gap-4 border-y bg-background/95 px-4 py-3 backdrop-blur-md md:static md:mx-0 md:bg-transparent md:px-0 md:backdrop-blur-none">
+        <nav
+          aria-label="Filter the collection"
+          className="no-scrollbar -my-1 flex flex-1 gap-2 overflow-x-auto py-1"
         >
-          <option value="featured">Sort: Featured</option>
-          <option value="price-asc">Price: Low to high</option>
-          <option value="price-desc">Price: High to low</option>
+          {filters.map((f) => {
+            const isActive = collection === f.id;
+            const count = filterProducts(f.id).length;
+            return (
+              <Link
+                key={f.label}
+                to="/bags"
+                search={(prev) => ({ ...prev, collection: f.id })}
+                replace
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm transition-colors",
+                  isActive
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border hover:border-foreground/50",
+                )}
+              >
+                {f.label}
+                <span
+                  className={cn("tnum text-xs", isActive ? "opacity-80" : "text-muted-foreground")}
+                >
+                  {count}
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
+        <label className="sr-only" htmlFor="sort">
+          Sort by
+        </label>
+        <select
+          id="sort"
+          value={sort ?? "featured"}
+          onChange={(e) =>
+            navigate({
+              search: (prev) => ({
+                ...prev,
+                sort: e.target.value === "featured" ? undefined : (e.target.value as Sort),
+              }),
+              replace: true,
+            })
+          }
+          className="min-h-11 shrink-0 rounded-full border border-border bg-background px-4 text-sm outline-none focus:border-primary"
+        >
+          <option value="featured">Featured</option>
+          <option value="price-asc">Price, low to high</option>
+          <option value="price-desc">Price, high to low</option>
         </select>
       </div>
-      <div key={`${cat}-${sortBy}`} className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+
+      <p className="mt-6 text-sm text-muted-foreground" aria-live="polite">
+        {list.length} {list.length === 1 ? "piece" : "pieces"}
+      </p>
+
+      <div
+        key={`${collection}-${sort}`}
+        className="mt-6 grid grid-cols-2 gap-x-3 gap-y-6 sm:gap-x-6 sm:gap-y-10 lg:grid-cols-3 xl:grid-cols-4"
+      >
         {list.map((p, i) => (
-          <Reveal key={p.slug} delay={(i % 3) * 120} className="h-full">
+          <Reveal key={p.slug} delay={(i % 4) * 90} className="h-full">
             <ProductCard p={p} />
           </Reveal>
         ))}

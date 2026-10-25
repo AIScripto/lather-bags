@@ -1,102 +1,81 @@
 import { Link } from "@tanstack/react-router";
-import { Heart, Star } from "lucide-react";
-import type { Product } from "@/lib/products";
+import { ArrowRight, Heart } from "lucide-react";
+import { formatSize, shades, type Product } from "@/lib/products";
+import { formatPrice } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-
-const swatch: Record<string, string> = {
-  Cognac: "oklch(0.52 0.12 48)",
-  Chestnut: "oklch(0.36 0.07 40)",
-  Black: "oklch(0.2 0.01 60)",
-  Tan: "oklch(0.65 0.11 65)",
-  Oxblood: "oklch(0.35 0.11 20)",
-  Olive: "oklch(0.42 0.06 110)",
-};
+import { ProductMedia } from "./ProductMedia";
 
 export function ProductCard({ p }: { p: Product }) {
   const { favorites, toggleFavorite } = useStore();
   const isFav = favorites.includes(p.slug);
 
   return (
-    <Link
-      to="/bags/$slug"
-      params={{ slug: p.slug }}
-      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-500 hover:-translate-y-1.5 hover:border-primary/40 hover:shadow-xl"
-    >
-      <div className="relative aspect-[4/5] overflow-hidden bg-muted/20">
-        <img
-          src={p.image}
-          alt={p.alt}
-          loading="lazy"
-          width={1024}
-          height={1280}
-          className="h-full w-full object-cover transition-transform duration-[1400ms] ease-out group-hover:scale-108"
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card transition-[border-color,box-shadow] duration-500 hover:border-primary/40 hover:shadow-[0_18px_40px_-24px_oklch(0.2_0.03_50/0.45)]">
+      <div className="relative aspect-[4/5] overflow-hidden bg-muted/30">
+        <ProductMedia
+          product={p}
+          className="transition-transform duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04]"
         />
-        <span className="eyebrow absolute left-3.5 top-3.5 rounded-full border border-border/40 bg-background/90 px-3.5 py-1.5 backdrop-blur-md shadow-xs text-foreground/90">
-          {p.category}
-        </span>
+        <div className="absolute left-2.5 top-2.5 flex gap-2 sm:left-3.5 sm:top-3.5">
+          <span className="hidden rounded-full bg-background/90 px-3 py-1 text-xs font-medium text-foreground/90 backdrop-blur-md sm:inline">
+            {p.category}
+          </span>
+          {p.isNew && (
+            <span className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
+              New
+            </span>
+          )}
+        </div>
         <button
           type="button"
           aria-label={isFav ? `Remove ${p.name} from saved items` : `Save ${p.name} to wishlist`}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleFavorite(p.slug);
-          }}
+          aria-pressed={isFav}
+          onClick={() => toggleFavorite(p.slug)}
           className={cn(
-            "absolute right-3.5 top-3.5 grid h-10 w-10 place-items-center rounded-full border border-border/40 bg-background/90 backdrop-blur-md shadow-xs transition-all hover:scale-110",
+            "absolute right-1.5 top-1.5 z-10 grid h-11 w-11 place-items-center rounded-full bg-background/90 backdrop-blur-md transition-colors",
             isFav ? "text-primary" : "text-muted-foreground hover:text-primary",
           )}
         >
-          <Heart
-            className={cn("h-4 w-4 transition-transform", isFav && "fill-current scale-110")}
-          />
+          <Heart className={cn("h-4 w-4", isFav && "fill-current")} />
         </button>
       </div>
-      <div className="flex flex-1 flex-col p-5">
-        <div className="flex items-center gap-1.5 text-accent text-xs">
-          <div className="flex items-center gap-0.5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} className="h-3.5 w-3.5 fill-current" />
-            ))}
-          </div>
-          <span className="text-xs text-muted-foreground">4.9 · 128 reviews</span>
-        </div>
-        <div className="mt-3 flex items-baseline justify-between gap-4">
-          <h3 className="min-w-0 truncate font-display text-2xl tracking-tight text-foreground transition-colors group-hover:text-primary">
-            {p.name}
+      {/* Compact below sm so phones show two cards per row: name, price and shades only. */}
+      <div className="flex flex-1 flex-col p-3 sm:p-5">
+        <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+          <h3 className="min-h-[2.5em] min-w-0 font-display text-lg leading-tight text-foreground sm:text-2xl">
+            <Link
+              to="/bags/$slug"
+              params={{ slug: p.slug }}
+              className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none group-has-[a:focus-visible]:underline"
+            >
+              {p.name}
+            </Link>
           </h3>
-          <span className="shrink-0 font-display text-2xl font-medium text-primary tnum">
-            ${p.price}
+          <span className="shrink-0 font-display text-lg text-primary tnum sm:text-2xl">
+            {formatPrice(p.price)}
           </span>
         </div>
-        <p className="mt-2.5 line-clamp-2 min-h-[2.6rem] text-[0.9375rem] leading-relaxed text-muted-foreground">
+        <p className="mb-5 mt-2 min-h-[3.25em] line-clamp-2 max-sm:hidden text-[0.9375rem] leading-relaxed text-muted-foreground">
           {p.blurb}
         </p>
-        <div className="mt-auto flex items-center justify-between gap-3 pt-5 border-t border-border/40">
-          <div
-            className="flex items-center gap-1.5"
-            aria-label={`Available colors: ${p.colors.join(", ")}`}
-          >
+        <div className="mt-auto flex items-center justify-between gap-3 pt-3 sm:border-t sm:border-border/50 sm:pt-4">
+          <div className="flex items-center gap-1" aria-label={`Shades: ${p.colors.join(", ")}`}>
             {p.colors.map((c) => (
               <span
                 key={c}
                 title={c}
-                className="flex h-6 w-6 items-center justify-center rounded-full transition-transform hover:scale-125"
-              >
-                <span
-                  className="h-4.5 w-4.5 rounded-full border-2 border-background ring-1 ring-border/60 shadow-xs"
-                  style={{ background: swatch[c] }}
-                />
-              </span>
+                className="h-3.5 w-3.5 rounded-full sm:h-4 sm:w-4 ring-1 ring-border ring-offset-1 ring-offset-card"
+                style={{ background: shades[c].color }}
+              />
             ))}
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-primary-foreground">
-            <span>View</span>
-            <span className="transition-transform group-hover:translate-x-0.5">→</span>
+          <span className="hidden items-center gap-1.5 text-[13px] text-muted-foreground tnum sm:flex">
+            {formatSize(p.specs.size)}
+            <ArrowRight className="h-3.5 w-3.5 text-primary transition-transform duration-300 group-hover:translate-x-0.5" />
           </span>
         </div>
       </div>
-    </Link>
+    </article>
   );
 }

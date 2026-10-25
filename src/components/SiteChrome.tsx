@@ -1,34 +1,66 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Palette,
-  ShoppingBag,
-  X,
+  ArrowLeft,
+  Heart,
   Menu,
-  Trash2,
-  Plus,
   Minus,
-  Sun,
   Moon,
-  Monitor,
-  Check,
+  Plus,
+  ShoppingBag,
+  Sun,
+  Trash2,
+  X,
 } from "lucide-react";
-import { themes, useStore } from "@/lib/store";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
+import { collections } from "@/lib/products";
+import { deliveryWindow, formatInitials, formatPrice } from "@/lib/format";
+import { findProduct } from "@/lib/products";
+import { foils, lineKey, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { ProductMedia } from "./ProductMedia";
 
 const nav = [
-  { to: "/bags", label: "Bags" },
+  { to: "/bags", label: "Shop" },
   { to: "/about", label: "Our Craft" },
   { to: "/contact", label: "Contact" },
 ] as const;
 
+function IconButton({
+  label,
+  onClick,
+  children,
+  badge,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+  badge?: number;
+}) {
+  return (
+    <button
+      aria-label={label}
+      onClick={onClick}
+      className="relative flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:text-primary"
+    >
+      {children}
+      {!!badge && (
+        <span className="absolute right-0.5 top-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-primary px-1 text-[11px] font-semibold text-primary-foreground tnum">
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export function SiteHeader() {
-  const { theme, isDark, setTheme, toggleColorMode, setCartOpen, cartCount } = useStore();
+  const { isDark, toggleColorMode, setCartOpen, setSavedOpen, cartCount, favorites } = useStore();
   const [scrolled, setScrolled] = useState(false);
-  const isHome = useLocation({ select: (l) => l.pathname }) === "/";
-  const [themeOpen, setThemeOpen] = useState(false);
   const [menu, setMenu] = useState(false);
-  const themeDropdownRef = useRef<HTMLDivElement>(null);
+  const pathname = useLocation({ select: (l) => l.pathname });
+  const overHero = pathname === "/" && !scrolled && !menu;
+  const menuRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(menu, menuRef, () => setMenu(false));
 
   useEffect(() => {
     const f = () => setScrolled(window.scrollY > 40);
@@ -37,41 +69,25 @@ export function SiteHeader() {
     return () => window.removeEventListener("scroll", f);
   }, []);
 
-  // Click outside to close theme dropdown
-  useEffect(() => {
-    if (!themeOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (themeDropdownRef.current && !themeDropdownRef.current.contains(e.target as Node)) {
-        setThemeOpen(false);
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setThemeOpen(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [themeOpen]);
+  useEffect(() => setMenu(false), [pathname]);
 
   return (
     <header
+      ref={menuRef}
       className={cn(
-        "fixed inset-x-0 top-0 z-40 transition-all duration-500",
-        scrolled ? "border-b bg-background/90 py-3 backdrop-blur-md" : "py-6",
-        !scrolled && isHome && "text-ink-foreground",
+        "fixed inset-x-0 top-0 z-40 transition-[background-color,padding,color] duration-500",
+        scrolled || menu ? "border-b bg-background/95 py-2.5 backdrop-blur-md" : "py-5",
+        overHero ? "text-ink-foreground" : "text-foreground",
       )}
     >
-      <div className="mx-auto flex max-w-[1500px] items-center justify-between px-6 md:px-10">
-        <nav className="hidden gap-8 text-sm md:flex">
+      <div className="mx-auto flex max-w-[1500px] items-center justify-between px-4 md:px-10">
+        <nav className="hidden gap-8 text-sm md:flex" aria-label="Main">
           {nav.map((n) => (
             <Link
               key={n.to}
               to={n.to}
               className="link-line"
-              activeProps={{ className: "text-primary" }}
+              activeProps={{ className: overHero ? "text-accent" : "text-primary" }}
             >
               {n.label}
             </Link>
@@ -79,163 +95,72 @@ export function SiteHeader() {
         </nav>
         <button
           className="flex h-11 w-11 items-center justify-center md:hidden"
-          aria-label={menu ? "Close navigation menu" : "Open navigation menu"}
+          aria-label={menu ? "Close menu" : "Open menu"}
           aria-expanded={menu}
+          aria-controls="mobile-menu"
           onClick={() => setMenu(!menu)}
         >
           {menu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
         <Link to="/" className="font-display text-2xl tracking-tight md:text-3xl">
           Hollow{" "}
-          <span className={cn("italic", !scrolled && isHome ? "text-accent" : "text-primary")}>
-            &amp;
-          </span>{" "}
+          <span className={cn("italic", overHero ? "text-accent" : "text-primary")}>&amp;</span>{" "}
           Hide
         </Link>
-        <div className="flex items-center gap-1.5 md:gap-3">
-          {/* Quick Light/Dark Mode Switcher */}
-          <button
-            aria-label={
-              isDark ? "Switch to light theme (Saddle)" : "Switch to dark theme (Midnight)"
-            }
-            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        <div className="flex items-center md:gap-1">
+          <IconButton
+            label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             onClick={toggleColorMode}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full transition-transform hover:scale-110 hover:text-primary"
           >
-            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
-
-          {/* Expanded Atelier Theme Picker */}
-          <div className="relative" ref={themeDropdownRef}>
-            <button
-              aria-label="Choose atelier leather theme"
-              aria-expanded={themeOpen}
-              onClick={() => setThemeOpen(!themeOpen)}
-              className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-full px-2 text-xs font-medium uppercase tracking-wider transition-colors hover:text-primary"
-            >
-              <Palette className="h-4 w-4" />
-              <span className="hidden md:inline">Theme</span>
-            </button>
-            {themeOpen && (
-              <div className="absolute right-0 top-12 w-72 animate-in fade-in slide-in-from-top-2 rounded-2xl border bg-popover/95 backdrop-blur-md p-2.5 shadow-2xl z-50">
-                <div className="flex items-center justify-between border-b pb-2 px-2.5 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <span>Atelier Palettes</span>
-                  <span className="text-[10px] lowercase text-primary font-normal">OKLCH</span>
-                </div>
-                <div className="mt-1 space-y-0.5">
-                  {themes.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        setTheme(t.id);
-                        setThemeOpen(false);
-                      }}
-                      className={cn(
-                        "flex w-full min-h-[44px] items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-muted",
-                        theme === t.id &&
-                          "bg-muted font-semibold text-foreground ring-1 ring-border/50",
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="flex overflow-hidden rounded-full border border-border shadow-xs shrink-0">
-                          <span className="h-4 w-2.5" style={{ background: t.swatch[0] }} />
-                          <span className="h-4 w-2.5" style={{ background: t.swatch[1] }} />
-                        </span>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-medium">{t.name}</span>
-                            <span className="rounded bg-muted/80 px-1.5 py-0.2 text-[9px] uppercase tracking-wider text-muted-foreground">
-                              {t.tone}
-                            </span>
-                          </div>
-                          <span className="block text-[10px] text-muted-foreground leading-tight">
-                            {t.description}
-                          </span>
-                        </div>
-                      </div>
-                      {theme === t.id && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-                <div className="border-t mt-1.5 pt-1.5">
-                  <button
-                    onClick={() => {
-                      setTheme("system");
-                      setThemeOpen(false);
-                    }}
-                    className={cn(
-                      "flex w-full min-h-[40px] items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-muted",
-                      theme === "system" &&
-                        "bg-muted font-semibold text-foreground ring-1 ring-border/50",
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Monitor className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <div>
-                        <span className="font-medium block">System Mode</span>
-                        <span className="text-[10px] text-muted-foreground block leading-tight">
-                          Auto-sync with OS dark/light
-                        </span>
-                      </div>
-                    </div>
-                    {theme === "system" && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                  </button>
-                </div>
-              </div>
+            {isDark ? (
+              <Sun className="h-[18px] w-[18px]" />
+            ) : (
+              <Moon className="h-[18px] w-[18px]" />
             )}
-          </div>
-          <button
-            aria-label={`Open shopping bag, ${cartCount} items`}
+          </IconButton>
+          <IconButton
+            label={`Saved pieces, ${favorites.length}`}
+            onClick={() => setSavedOpen(true)}
+            badge={favorites.length}
+          >
+            <Heart className="h-[18px] w-[18px]" />
+          </IconButton>
+          <IconButton
+            label={`Open bag, ${cartCount} items`}
             onClick={() => setCartOpen(true)}
-            className="relative flex h-11 w-11 items-center justify-center transition-transform hover:scale-105"
+            badge={cartCount}
           >
             <ShoppingBag className="h-5 w-5" />
-            {cartCount > 0 && (
-              <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-                {cartCount}
-              </span>
-            )}
-          </button>
+          </IconButton>
         </div>
       </div>
       {menu && (
-        <nav className="flex flex-col gap-6 border-t bg-background px-6 py-6 md:hidden">
-          <div className="flex flex-col gap-4">
-            {nav.map((n) => (
+        <nav
+          id="mobile-menu"
+          aria-label="Main"
+          className="flex flex-col gap-1 px-4 pb-8 pt-4 md:hidden"
+        >
+          {nav.map((n) => (
+            <Link
+              key={n.to}
+              to={n.to}
+              className="py-2 font-display text-4xl"
+              activeProps={{ className: "text-primary" }}
+            >
+              {n.label}
+            </Link>
+          ))}
+          <div className="mt-6 flex flex-wrap gap-2 border-t pt-6">
+            {collections.map((c) => (
               <Link
-                key={n.to}
-                to={n.to}
-                onClick={() => setMenu(false)}
-                className="font-display text-2xl"
+                key={c.id}
+                to="/bags"
+                search={{ collection: c.id }}
+                className="flex min-h-11 items-center rounded-full border px-4 text-sm"
               >
-                {n.label}
+                {c.label}
               </Link>
             ))}
-          </div>
-          <div className="border-t pt-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              Atelier Theme
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {themes.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTheme(t.id)}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg border p-2.5 text-left text-xs transition-colors",
-                    theme === t.id
-                      ? "border-primary bg-primary/10 font-semibold"
-                      : "hover:bg-muted",
-                  )}
-                >
-                  <span className="flex overflow-hidden rounded-full border border-border shadow-xs shrink-0">
-                    <span className="h-4 w-2" style={{ background: t.swatch[0] }} />
-                    <span className="h-4 w-2" style={{ background: t.swatch[1] }} />
-                  </span>
-                  <span className="truncate">{t.name}</span>
-                </button>
-              ))}
-            </div>
           </div>
         </nav>
       )}
@@ -243,234 +168,440 @@ export function SiteHeader() {
   );
 }
 
-export function CartDrawer() {
-  const { cartOpen, setCartOpen, cartItems, removeFromCart, updateQuantity, cartSubtotal } =
-    useStore();
-  const [checkedOut, setCheckedOut] = useState(false);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && cartOpen) setCartOpen(false);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [cartOpen, setCartOpen]);
+/** Right-hand sheet. Inert and hidden from assistive tech while closed. */
+function Drawer({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: ReactNode;
+  children: ReactNode;
+  footer?: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, ref, onClose);
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Shopping bag"
       className={cn(
         "fixed inset-0 z-50 transition-opacity duration-500",
-        cartOpen ? "opacity-100" : "pointer-events-none opacity-0",
+        open ? "opacity-100" : "pointer-events-none opacity-0",
       )}
+      inert={!open}
+      aria-hidden={!open}
     >
-      <div
-        className="absolute inset-0 bg-ink/50 backdrop-blur-sm"
-        onClick={() => setCartOpen(false)}
-      />
+      <div className="absolute inset-0 bg-ink/50 backdrop-blur-[2px]" onClick={onClose} />
       <aside
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label={typeof title === "string" ? title : undefined}
         className={cn(
-          "absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-background p-8 transition-transform duration-500 ease-out",
-          cartOpen ? "translate-x-0" : "translate-x-full",
+          "absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-background shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          open ? "translate-x-0" : "translate-x-full",
         )}
       >
-        <div className="flex items-center justify-between border-b pb-4">
-          <h2 className="font-display text-3xl">Your bag</h2>
+        <div className="flex items-center justify-between border-b px-6 py-4">
+          <h2 className="font-display text-3xl">{title}</h2>
           <button
-            aria-label="Close bag drawer"
-            onClick={() => setCartOpen(false)}
+            aria-label="Close"
+            onClick={onClose}
             className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-muted"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
-
-        <div className="mt-6 flex-1 space-y-6 overflow-y-auto pr-2">
-          {cartItems.length === 0 ? (
-            <div className="py-16 text-center text-muted-foreground">
-              <ShoppingBag className="mx-auto h-12 w-12 opacity-30" />
-              <p className="mt-4 font-display text-2xl">Your bag is empty.</p>
-              <p className="mt-2 text-sm">Discover pieces built for decades of living.</p>
-              <Link
-                to="/bags"
-                onClick={() => setCartOpen(false)}
-                className="mt-6 inline-block bg-primary px-6 py-3 text-xs font-semibold uppercase tracking-widest text-primary-foreground"
-              >
-                Shop the collection
-              </Link>
-            </div>
-          ) : (
-            cartItems.map((item) => (
-              <div key={`${item.product.slug}-${item.color}`} className="flex gap-4 border-b pb-6">
-                <img
-                  src={item.product.image}
-                  alt={item.product.alt}
-                  className="h-28 w-24 object-cover"
-                />
-                <div className="flex flex-1 flex-col justify-between">
-                  <div>
-                    <p className="font-display text-lg">{item.product.name}</p>
-                    <p className="text-xs text-muted-foreground">Colour: {item.color}</p>
-                    <p className="mt-1 text-sm font-medium">${item.product.price}</p>
-                  </div>
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="flex items-center gap-2 border">
-                      <button
-                        aria-label="Decrease quantity"
-                        onClick={() => updateQuantity(item.product.slug, item.color, -1)}
-                        className="flex h-8 w-8 items-center justify-center hover:bg-muted"
-                      >
-                        <Minus className="h-3 w-3" />
-                      </button>
-                      <span className="w-6 text-center text-xs font-medium">{item.quantity}</span>
-                      <button
-                        aria-label="Increase quantity"
-                        onClick={() => updateQuantity(item.product.slug, item.color, 1)}
-                        className="flex h-8 w-8 items-center justify-center hover:bg-muted"
-                      >
-                        <Plus className="h-3 w-3" />
-                      </button>
-                    </div>
-                    <button
-                      aria-label={`Remove ${item.product.name} (${item.color}) from bag`}
-                      onClick={() => removeFromCart(item.product.slug, item.color)}
-                      className="p-2 text-muted-foreground transition-colors hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {cartItems.length > 0 && (
-          <div className="border-t pt-6">
-            <div className="flex justify-between text-sm">
-              <span>Subtotal</span>
-              <span className="font-medium">${cartSubtotal}</span>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Free worldwide shipping · Lifetime repairs included
-            </p>
-            <button
-              onClick={() => setCheckedOut(true)}
-              className="mt-6 w-full bg-primary py-4 text-sm font-semibold uppercase tracking-widest text-primary-foreground transition-opacity hover:opacity-90"
-            >
-              {checkedOut ? "Order Confirmed — Thank You" : "Proceed to Checkout"}
-            </button>
-            {checkedOut && (
-              <p className="mt-2 text-center text-xs text-primary">
-                Demo checkout simulated successfully.
-              </p>
-            )}
-          </div>
-        )}
+        <div className="flex-1 overflow-y-auto px-6 py-6">{children}</div>
+        {footer && <div className="border-t px-6 py-6">{footer}</div>}
       </aside>
     </div>
   );
 }
 
+function EmptyState({
+  title,
+  body,
+  onClose,
+}: {
+  title: string;
+  body: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="py-16 text-center">
+      <p className="font-display text-3xl">{title}</p>
+      <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground">{body}</p>
+      <Link
+        to="/bags"
+        onClick={onClose}
+        className="mt-8 inline-flex min-h-11 items-center rounded-full bg-primary px-6 text-sm font-medium text-primary-foreground"
+      >
+        Browse the collection
+      </Link>
+    </div>
+  );
+}
+
+type Step = "bag" | "review" | "placed";
+
+export function CartDrawer() {
+  const {
+    cartOpen,
+    setCartOpen,
+    cartItems,
+    removeFromCart,
+    updateQuantity,
+    cartSubtotal,
+    clearCart,
+  } = useStore();
+  const [step, setStep] = useState<Step>("bag");
+  const [orderNo, setOrderNo] = useState("");
+  const close = () => setCartOpen(false);
+
+  // Start fresh each time the drawer is reopened after an order or a review.
+  useEffect(() => {
+    if (!cartOpen) {
+      const t = setTimeout(() => setStep("bag"), 500);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [cartOpen]);
+
+  const placeOrder = () => {
+    setOrderNo(`HH-${Math.floor(100000 + Math.random() * 900000)}`);
+    clearCart();
+    setStep("placed");
+  };
+
+  const title = step === "review" ? "Review order" : step === "placed" ? "Thank you" : "Your bag";
+
+  const footer =
+    step === "bag" && cartItems.length > 0 ? (
+      <>
+        <div className="flex justify-between text-base">
+          <span>Subtotal</span>
+          <span className="font-medium tnum">{formatPrice(cartSubtotal)}</span>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Free shipping and monogramming. Arrives {deliveryWindow()}.
+        </p>
+        <button
+          onClick={() => setStep("review")}
+          className="mt-5 min-h-12 w-full rounded-full bg-primary text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+        >
+          Review and check out
+        </button>
+      </>
+    ) : step === "review" ? (
+      <>
+        <button
+          onClick={placeOrder}
+          className="min-h-12 w-full rounded-full bg-primary text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+        >
+          Place order · {formatPrice(cartSubtotal)}
+        </button>
+        <p className="mt-3 text-center text-xs text-muted-foreground">
+          This is a demonstration shop. No payment is taken.
+        </p>
+      </>
+    ) : null;
+
+  return (
+    <Drawer open={cartOpen} onClose={close} title={title} footer={footer}>
+      {step === "placed" ? (
+        <div className="py-10 text-center">
+          <p className="font-display text-4xl">Order {orderNo}</p>
+          <p className="mx-auto mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
+            Your pieces go to the bench today. Expect them {deliveryWindow()}, with a note from the
+            maker who signed them.
+          </p>
+          <button
+            onClick={close}
+            className="mt-8 inline-flex min-h-11 items-center rounded-full border px-6 text-sm"
+          >
+            Continue browsing
+          </button>
+        </div>
+      ) : cartItems.length === 0 ? (
+        <EmptyState
+          title="Your bag is empty."
+          body="Every piece is cut and stitched by one pair of hands, and mended free for life."
+          onClose={close}
+        />
+      ) : step === "review" ? (
+        <div>
+          <button
+            onClick={() => setStep("bag")}
+            className="mb-6 inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" /> Edit bag
+          </button>
+          <ul className="divide-y border-y">
+            {cartItems.map((i) => (
+              <li key={lineKey(i)} className="flex justify-between gap-4 py-4 text-sm">
+                <div>
+                  <p className="font-medium">
+                    {i.quantity} × {i.product.name}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {i.color}
+                    {i.monogram &&
+                      ` · ${formatInitials(i.monogram.initials)} in ${foils.find((f) => f.id === i.monogram!.foil)?.label.toLowerCase()}`}
+                  </p>
+                </div>
+                <span className="tnum">{formatPrice(i.product.price * i.quantity)}</span>
+              </li>
+            ))}
+          </ul>
+          <dl className="mt-6 space-y-2 text-sm">
+            {[
+              ["Shipping", "Free, tracked"],
+              ["Estimated delivery", deliveryWindow()],
+              ["Returns", "60 days, free"],
+              ["Repairs", "Free for life"],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+            <div className="flex justify-between gap-4 border-t pt-3 text-base font-medium">
+              <dt>Total</dt>
+              <dd className="tnum">{formatPrice(cartSubtotal)}</dd>
+            </div>
+          </dl>
+        </div>
+      ) : (
+        <ul className="space-y-6">
+          {cartItems.map((item) => {
+            const key = lineKey(item);
+            return (
+              <li key={key} className="flex gap-4 border-b pb-6">
+                <div className="h-28 w-24 shrink-0 overflow-hidden rounded-xl bg-muted">
+                  <ProductMedia product={item.product} shade={item.color} />
+                </div>
+                <div className="flex flex-1 flex-col justify-between">
+                  <div>
+                    <p className="font-display text-xl leading-tight">{item.product.name}</p>
+                    <p className="mt-0.5 text-sm text-muted-foreground">{item.color}</p>
+                    {item.monogram && (
+                      <p className="text-sm text-muted-foreground">
+                        Monogram {formatInitials(item.monogram.initials)}
+                      </p>
+                    )}
+                    <p className="mt-1 text-sm font-medium tnum">
+                      {formatPrice(item.product.price)}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center rounded-full border">
+                      <button
+                        aria-label={`Remove one ${item.product.name}`}
+                        onClick={() => updateQuantity(key, -1)}
+                        className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-muted"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="w-6 text-center text-sm font-medium tnum" aria-live="polite">
+                        {item.quantity}
+                      </span>
+                      <button
+                        aria-label={`Add one more ${item.product.name}`}
+                        onClick={() => updateQuantity(key, 1)}
+                        className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-muted"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <button
+                      aria-label={`Remove ${item.product.name} (${item.color}) from bag`}
+                      onClick={() => removeFromCart(key)}
+                      className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Drawer>
+  );
+}
+
+export function SavedDrawer() {
+  const { savedOpen, setSavedOpen, favorites, toggleFavorite, addToCart } = useStore();
+  const close = () => setSavedOpen(false);
+  const saved = favorites.map(findProduct).filter((p) => !!p);
+
+  return (
+    <Drawer open={savedOpen} onClose={close} title="Saved pieces">
+      {saved.length === 0 ? (
+        <EmptyState
+          title="Nothing saved yet."
+          body="Tap the heart on any piece to keep it here while you decide."
+          onClose={close}
+        />
+      ) : (
+        <ul className="space-y-6">
+          {saved.map((p) => (
+            <li key={p.slug} className="flex gap-4 border-b pb-6">
+              <Link
+                to="/bags/$slug"
+                params={{ slug: p.slug }}
+                onClick={close}
+                className="h-28 w-24 shrink-0 overflow-hidden rounded-xl bg-muted"
+              >
+                <ProductMedia product={p} />
+              </Link>
+              <div className="flex flex-1 flex-col justify-between">
+                <div>
+                  <Link
+                    to="/bags/$slug"
+                    params={{ slug: p.slug }}
+                    onClick={close}
+                    className="font-display text-xl leading-tight hover:text-primary"
+                  >
+                    {p.name}
+                  </Link>
+                  <p className="mt-1 text-sm tnum">{formatPrice(p.price)}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => addToCart(p)}
+                    className="min-h-11 rounded-full bg-primary px-4 text-sm text-primary-foreground"
+                  >
+                    Add {p.colors[0]} to bag
+                  </button>
+                  <button
+                    aria-label={`Remove ${p.name} from saved`}
+                    onClick={() => toggleFavorite(p.slug)}
+                    className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Drawer>
+  );
+}
+
 export function SiteFooter() {
-  const { theme, setTheme } = useStore();
-  const [subscribed, setSubscribed] = useState(false);
+  const [status, setStatus] = useState<"idle" | "invalid" | "done">("idle");
   const [email, setEmail] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-      setSubscribed(true);
-      setEmail("");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setStatus("invalid");
+      return;
     }
+    setStatus("done");
+    setEmail("");
   };
 
   return (
-    <footer className="grain bg-ink px-6 pb-10 pt-24 text-ink-foreground md:px-10">
+    <footer className="grain bg-ink px-4 pb-10 pt-24 text-ink-foreground md:px-10">
       <div className="mx-auto max-w-[1500px]">
-        <p className="font-display text-[14vw] leading-none tracking-tighter opacity-90 md:text-[10vw]">
-          Hollow <span className="italic text-accent">&amp;</span> Hide
-        </p>
-        <div className="mt-16 grid gap-10 border-t border-ink-foreground/15 pt-10 text-sm md:grid-cols-4">
+        <div className="grid gap-12 md:grid-cols-[1.2fr_1fr]">
           <div>
-            <p className="eyebrow text-accent">Shop</p>
-            <ul className="mt-4 space-y-2 opacity-80">
-              <li>
-                <Link to="/bags" className="link-line">
-                  All bags
-                </Link>
-              </li>
-              <li>
-                <Link to="/bags" className="link-line">
-                  New arrivals
-                </Link>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <p className="eyebrow text-accent">House</p>
-            <ul className="mt-4 space-y-2 opacity-80">
-              <li>
-                <Link to="/about" className="link-line">
-                  Our craft
-                </Link>
-              </li>
-              <li>
-                <Link to="/contact" className="link-line">
-                  Contact
-                </Link>
-              </li>
-            </ul>
-          </div>
-          <div className="md:col-span-2">
-            <p className="eyebrow text-accent">Letters from the workshop</p>
-            {subscribed ? (
-              <p className="mt-4 text-sm text-accent">
-                Thank you. You have been added to the workshop ledger.
+            <h2 className="font-display text-4xl md:text-5xl">Letters from the workshop</h2>
+            <p className="mt-3 max-w-md text-ink-foreground/75">
+              New pieces before anyone else, and essays on leather care. Once a month, never more.
+            </p>
+            {status === "done" ? (
+              <p className="mt-6 text-accent" role="status">
+                Thank you. The first letter arrives at the start of next month.
               </p>
             ) : (
-              <form onSubmit={handleSubmit} className="mt-4 flex border-b border-ink-foreground/30">
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Your email address"
-                  aria-label="Your email address for workshop letters"
-                  className="flex-1 bg-transparent py-3 outline-none placeholder:text-ink-foreground/50"
-                />
-                <button type="submit" className="eyebrow transition-colors hover:text-accent">
-                  Subscribe →
-                </button>
+              <form onSubmit={handleSubmit} noValidate className="mt-6 max-w-md">
+                <div className="flex border-b border-ink-foreground/40 focus-within:border-accent">
+                  <label htmlFor="footer-email" className="sr-only">
+                    Email address
+                  </label>
+                  <input
+                    id="footer-email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (status === "invalid") setStatus("idle");
+                    }}
+                    placeholder="Your email address"
+                    aria-invalid={status === "invalid"}
+                    aria-describedby={status === "invalid" ? "footer-email-error" : undefined}
+                    className="flex-1 bg-transparent py-3 outline-none placeholder:text-ink-foreground/55"
+                  />
+                  <button
+                    type="submit"
+                    className="min-h-11 px-2 text-sm font-medium hover:text-accent"
+                  >
+                    Subscribe
+                  </button>
+                </div>
+                {status === "invalid" && (
+                  <p id="footer-email-error" className="mt-2 text-sm text-accent">
+                    That address looks incomplete. Check for the @ and the domain.
+                  </p>
+                )}
               </form>
             )}
           </div>
-        </div>
-        <div className="mt-16 flex flex-wrap items-center justify-between gap-4 border-t border-ink-foreground/10 pt-6 text-xs opacity-75">
-          <p>© 2026 Hollow &amp; Hide. Handcrafted leather goods.</p>
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] uppercase tracking-wider opacity-60">
-              Atelier Palette:
-            </span>
-            <div className="flex items-center gap-1.5">
-              {themes.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTheme(t.id)}
-                  title={`Switch to ${t.name} theme`}
-                  className={cn(
-                    "flex h-5 w-5 overflow-hidden rounded-full border border-ink-foreground/30 transition-transform hover:scale-125",
-                    theme === t.id && "ring-2 ring-accent ring-offset-1 ring-offset-ink scale-110",
-                  )}
-                >
-                  <span className="h-full w-1/2" style={{ background: t.swatch[0] }} />
-                  <span className="h-full w-1/2" style={{ background: t.swatch[1] }} />
-                </button>
-              ))}
+          <div className="grid grid-cols-2 gap-8 text-sm">
+            <div>
+              <p className="text-ink-foreground/60">Shop</p>
+              <ul className="mt-4 space-y-2.5">
+                <li>
+                  <Link to="/bags" search={{ collection: "new" }} className="link-line">
+                    New this season
+                  </Link>
+                </li>
+                {collections.map((c) => (
+                  <li key={c.id}>
+                    <Link to="/bags" search={{ collection: c.id }} className="link-line">
+                      {c.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-ink-foreground/60">House</p>
+              <ul className="mt-4 space-y-2.5">
+                <li>
+                  <Link to="/about" className="link-line">
+                    Our craft
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/contact" className="link-line">
+                    Contact and repairs
+                  </Link>
+                </li>
+              </ul>
             </div>
           </div>
+        </div>
+        <p
+          aria-hidden="true"
+          className="mt-20 font-display text-[15vw] leading-[0.85] tracking-[-0.03em] text-ink-foreground/90 md:text-[11vw]"
+        >
+          Hollow <span className="italic text-accent">&amp;</span> Hide
+        </p>
+        <div className="mt-10 flex flex-wrap justify-between gap-4 border-t border-ink-foreground/15 pt-6 text-xs text-ink-foreground/65">
+          <p>© 2026 Hollow &amp; Hide. Prices in US dollars.</p>
+          <p>Free shipping · 60-day returns · Repairs for life</p>
         </div>
       </div>
     </footer>

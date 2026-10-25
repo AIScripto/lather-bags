@@ -1,13 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { Star, ShieldCheck, Sparkles, Globe, RotateCcw } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import hero from "@/assets/hero.jpg";
 import craft from "@/assets/craft.jpg";
 import lifestyle from "@/assets/lifestyle.jpg";
-import { products } from "@/lib/products";
+import briefcase from "@/assets/bag-briefcase.jpg";
+import tote from "@/assets/bag-tote.jpg";
+import duffel from "@/assets/bag-duffel.jpg";
+import { collections, filterProducts, findProduct, type Collection } from "@/lib/products";
 import { ProductCard } from "@/components/ProductCard";
 import { Marquee, Parallax, Reveal } from "@/components/Reveal";
-import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -25,53 +26,72 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-function Index() {
-  const [monogramInitials, setMonogramInitials] = useState("H.H");
-  const [foilStyle, setFoilStyle] = useState<"gold" | "silver" | "blind">("gold");
-  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
-  const [newsletterEmail, setNewsletterEmail] = useState("");
+const mostCarried = ["the-heritage-satchel", "the-barrister-briefcase", "the-market-tote"]
+  .map(findProduct)
+  .filter((p) => !!p);
 
-  const handleInitialsChange = (val: string) => {
-    const clean = val
-      .toUpperCase()
-      .replace(/[^A-Z]/g, "")
-      .slice(0, 3);
-    if (!clean) {
-      setMonogramInitials("");
-      return;
-    }
-    setMonogramInitials(clean.split("").join("."));
-  };
+const useTiles: { id: Collection; image: string; alt: string }[] = [
+  { id: "work", image: briefcase, alt: "Chestnut leather briefcase" },
+  { id: "everyday", image: tote, alt: "Tan leather tote" },
+  { id: "travel", image: duffel, alt: "Oxblood leather holdall" },
+];
+
+const testimonials = [
+  {
+    quote:
+      "Ten years, three continents, and it only looks better with each flight. The best thing I own.",
+    name: "Amelia R.",
+    piece: "Heritage Satchel",
+    city: "London",
+  },
+  {
+    quote:
+      "You can feel the eleven hours of hand-stitching the moment you unbox it. The brass has darkened beautifully.",
+    name: "Daniel K.",
+    piece: "Barrister Briefcase",
+    city: "Zurich",
+  },
+  {
+    quote:
+      "They repaired a shoulder strap I broke on a hike, free, within four days. Customers for life.",
+    name: "Sana M.",
+    piece: "The Weekender",
+    city: "Tokyo",
+  },
+];
+
+function Index() {
+  const newPieces = filterProducts("new").filter((p) => p.collection !== "small-goods");
 
   return (
     <>
-      {/* Hero Section */}
-      <section className="relative h-screen min-h-[660px] overflow-hidden">
+      <section className="relative h-[100svh] min-h-[620px] overflow-hidden">
         <img
           src={hero}
           alt="Cognac leather satchel on stone in morning sunlight"
           width={1920}
           height={1088}
-          className="absolute inset-0 h-full w-full animate-in zoom-in-105 object-cover duration-[2500ms]"
+          fetchPriority="high"
+          className="absolute inset-0 h-full w-full animate-in object-cover duration-[2500ms] zoom-in-105"
         />
-        {/* Calibrated lighting scrim */}
-        <div className="absolute inset-0 bg-gradient-to-t from-ink/95 via-ink/40 to-ink/10" />
-        <div className="relative flex h-full flex-col justify-end px-6 pb-20 text-ink-foreground md:px-12 lg:px-16">
-          <p className="eyebrow w-fit rounded-full border border-ink-foreground/25 bg-ink/50 px-4 py-1.5 backdrop-blur-md shadow-sm">
-            Autumn / Winter 2026 Collection
-          </p>
-          <h1 className="mt-5 max-w-5xl font-display text-5xl leading-[0.94] tracking-tight sm:text-7xl md:text-8xl lg:text-9xl text-balance">
+        <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/35 to-ink/20" />
+        <div className="relative mx-auto flex h-full max-w-[1500px] flex-col justify-end px-4 pb-16 text-ink-foreground md:px-10 md:pb-20">
+          <h1 className="max-w-4xl animate-rise font-display text-6xl leading-[0.95] sm:text-7xl md:text-8xl">
             Made to <em className="text-accent">age</em> with you.
           </h1>
-          <div className="mt-10 flex flex-wrap items-center gap-6">
+          <p className="mt-6 max-w-lg animate-rise text-lg text-ink-foreground/85 [animation-delay:120ms]">
+            Full-grain bridle leather, cut and saddle-stitched by one pair of hands, then mended
+            free for as long as you carry it.
+          </p>
+          <div className="mt-9 flex animate-rise flex-wrap items-center gap-x-8 gap-y-4 [animation-delay:220ms]">
             <Link
               to="/bags"
-              className="rounded-full bg-primary px-8 py-4 text-xs font-semibold uppercase tracking-widest text-primary-foreground shadow-xl transition-all hover:-translate-y-0.5 hover:shadow-2xl"
+              className="inline-flex min-h-12 items-center rounded-full bg-primary px-8 text-sm font-medium text-primary-foreground transition-transform hover:-translate-y-0.5"
             >
               Shop the collection
             </Link>
-            <Link to="/about" className="link-line text-sm tracking-wide">
-              Discover our craft →
+            <Link to="/bags" search={{ collection: "new" }} className="link-line text-sm">
+              New this season: six new bags
             </Link>
           </div>
         </div>
@@ -82,456 +102,180 @@ function Index() {
           "Full-grain bridle leather",
           "Hand saddle-stitched",
           "Solid cast brass",
-          "Lifetime complimentary repairs",
-          "Crafted in small batches",
+          "Repairs free for life",
+          "Signed by the maker",
         ]}
       />
 
-      {/* Featured Collection */}
-      <section className="mx-auto max-w-[1500px] px-6 py-20 md:py-28 md:px-10">
+      <section className="mx-auto max-w-[1500px] px-4 py-20 md:px-10 md:py-28">
         <Reveal className="flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <h2 className="font-display text-4xl sm:text-6xl md:text-7xl tracking-tight">
-              Carried <em>daily</em>.
-            </h2>
-            <p className="mt-2 text-base text-muted-foreground reading-measure">
-              Signature full-grain silhouettes designed for decades of living.
-            </p>
-          </div>
-          <Link to="/bags" className="link-line text-sm font-medium tracking-wide">
-            View all {products.length} bags →
+          <h2 className="font-display text-5xl md:text-7xl">Most carried</h2>
+          <Link to="/bags" className="link-line inline-flex items-center gap-2 text-sm">
+            All {filterProducts().length} pieces <ArrowRight className="h-4 w-4" />
           </Link>
         </Reveal>
-        <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {products.slice(0, 3).map((p, i) => (
-            <Reveal key={p.slug} delay={i * 120} className="h-full">
+        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {mostCarried.map((p, i) => (
+            <Reveal key={p.slug} delay={i * 90} className="h-full">
               <ProductCard p={p} />
             </Reveal>
           ))}
         </div>
       </section>
 
-      {/* Artisan Craft Section */}
-      <section className="grid items-center gap-12 border-y bg-card/60 px-6 py-20 md:grid-cols-2 md:px-10 lg:gap-16">
-        <Parallax
-          src={craft}
-          alt="Craftsman hand-stitching full-grain leather"
-          className="aspect-[4/5] rounded-3xl overflow-hidden shadow-xl"
-        />
-        <Reveal className="max-w-xl">
-          <span className="eyebrow text-primary">Bench Discipline</span>
-          <h2 className="mt-3 font-display text-4xl sm:text-5xl md:text-6xl leading-tight tracking-tight">
-            Eleven hours. <em>One</em> pair of hands.
-          </h2>
-          <p className="mt-6 text-base sm:text-lg leading-relaxed text-muted-foreground reading-measure">
-            Every bag is cut, beveled, edged, and saddle-stitched by a single artisan from start to
-            finish, then signed on the interior hide. No assembly lines and no shortcuts—just
-            enduring bench craft that tells your story.
-          </p>
-          <div className="mt-10 grid grid-cols-3 gap-6 border-t border-border/50 pt-8">
-            {[
-              ["38", "Years of Craft"],
-              ["2,400", "Hand Stitches"],
-              ["∞", "Lifetime Guarantee"],
-            ].map(([n, l]) => (
-              <div key={l}>
-                <p className="font-display text-4xl sm:text-5xl font-semibold text-primary tnum">
-                  {n}
-                </p>
-                <p className="mt-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {l}
-                </p>
-              </div>
-            ))}
-          </div>
+      <section className="mx-auto max-w-[1500px] px-4 pb-20 md:px-10 md:pb-28">
+        <Reveal>
+          <h2 className="font-display text-5xl md:text-7xl">Shop by the day ahead</h2>
+        </Reveal>
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          {useTiles.map((t, i) => {
+            const c = collections.find((x) => x.id === t.id)!;
+            return (
+              <Reveal key={t.id} delay={i * 90}>
+                <Link
+                  to="/bags"
+                  search={{ collection: t.id }}
+                  className="group relative block aspect-[4/5] overflow-hidden rounded-2xl"
+                >
+                  <img
+                    src={t.image}
+                    alt={t.alt}
+                    loading="lazy"
+                    className="h-full w-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04]"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/10 to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 p-6 text-ink-foreground">
+                    <p className="font-display text-4xl">{c.label}</p>
+                    <p className="mt-1 max-w-xs text-sm text-ink-foreground/85">{c.line}</p>
+                    <p className="mt-4 inline-flex items-center gap-2 text-sm">
+                      {filterProducts(t.id).length} pieces
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </p>
+                  </div>
+                </Link>
+              </Reveal>
+            );
+          })}
+        </div>
+        <Reveal className="mt-4">
+          <Link
+            to="/bags"
+            search={{ collection: "small-goods" }}
+            className="group flex min-h-16 items-center justify-between rounded-2xl border px-6 transition-colors hover:border-primary/50"
+          >
+            <span>
+              <span className="font-display text-2xl">Small goods</span>
+              <span className="ml-3 hidden text-sm text-muted-foreground sm:inline">
+                Card holders, valet trays and tags, from the same hides
+              </span>
+            </span>
+            <ArrowRight className="h-5 w-5 text-primary transition-transform group-hover:translate-x-1" />
+          </Link>
         </Reveal>
       </section>
 
-      {/* Atmospheric Editorial Breather */}
-      <section className="relative h-[75vh] min-h-[500px] overflow-hidden">
+      <section className="border-y bg-card/50 py-20 md:py-28">
+        <div className="mx-auto max-w-[1500px] px-4 md:px-10">
+          <Reveal className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <h2 className="font-display text-5xl md:text-7xl">New this season</h2>
+              <p className="mt-3 max-w-xl text-muted-foreground">
+                Six new bags, shown here as drawings from the pattern table while the studio
+                photographs them. Pick a shade on each page to see it in your leather.
+              </p>
+            </div>
+            <Link
+              to="/bags"
+              search={{ collection: "new" }}
+              className="link-line inline-flex items-center gap-2 text-sm"
+            >
+              See all new pieces <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Reveal>
+        </div>
+        <div
+          className="no-scrollbar mt-10 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-2 md:px-10 [scroll-padding-inline:1rem] md:[scroll-padding-inline:2.5rem]"
+          aria-label="New this season"
+        >
+          {newPieces.map((p) => (
+            <div key={p.slug} className="w-[78vw] max-w-[340px] shrink-0 snap-start">
+              <ProductCard p={p} />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-[1500px] items-center gap-12 px-4 py-20 md:grid-cols-2 md:px-10 md:py-28 lg:gap-20">
+        <Parallax
+          src={craft}
+          alt="Craftsman hand-stitching full-grain leather"
+          className="aspect-[4/5] rounded-2xl"
+          speed={0.08}
+        />
+        <Reveal className="max-w-xl">
+          <h2 className="font-display text-5xl leading-[1.02] md:text-6xl">
+            Eleven hours. One pair of hands.
+          </h2>
+          <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
+            Every bag is cut, bevelled, edged and saddle-stitched by a single artisan from start to
+            finish, then signed on the inside. Two needles pass through every hole, so if one stitch
+            ever wears through, the seam still holds.
+          </p>
+          <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
+            If anything ever breaks, send it back. Every bag we have ever made is mended free, for
+            as long as its owner carries it.
+          </p>
+          <Link to="/about" className="link-line mt-8 inline-flex items-center gap-2 text-sm">
+            How a bag is made <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Reveal>
+      </section>
+
+      <section className="relative h-[80svh] min-h-[480px] overflow-hidden">
         <Parallax
           src={lifestyle}
           alt="Walking with an aged leather satchel"
           className="absolute inset-0"
-          speed={0.22}
+          speed={0.18}
         />
-        <div className="absolute inset-0 bg-ink/45 backdrop-blur-[0.5px]" />
-        <Reveal className="relative flex h-full flex-col items-center justify-center px-6 text-center text-ink-foreground">
-          <h2 className="max-w-4xl font-display text-5xl italic sm:text-7xl md:text-8xl tracking-tight text-balance">
+        <div className="absolute inset-0 bg-ink/45" />
+        <Reveal className="relative flex h-full flex-col items-center justify-center px-4 text-center text-ink-foreground">
+          <h2 className="max-w-4xl font-display text-5xl italic sm:text-7xl md:text-8xl">
             The long way home.
           </h2>
-          <p className="mt-5 max-w-xl text-base sm:text-lg text-ink-foreground/90 reading-measure opacity-90">
-            Full-grain leather that absorbs every journey, sunlight, and rain into a rich caramel
-            patina.
+          <p className="mt-5 max-w-lg text-lg text-ink-foreground/90">
+            Holdalls sized for one night, two days or a long week.
           </p>
           <Link
             to="/bags"
-            className="mt-10 rounded-full border border-ink-foreground/70 px-8 py-4 text-xs font-semibold uppercase tracking-widest transition-all hover:bg-ink-foreground hover:text-ink hover:scale-105"
+            search={{ collection: "travel" }}
+            className="mt-9 inline-flex min-h-12 items-center rounded-full border border-ink-foreground/70 px-8 text-sm transition-colors hover:bg-ink-foreground hover:text-ink"
           >
-            Explore travel pieces
+            Shop travel
           </Link>
         </Reveal>
       </section>
 
-      {/* Asymmetric Category Showcase */}
-      <section className="mx-auto max-w-[1500px] px-6 py-20 md:py-28 md:px-10">
-        <Reveal>
-          <h2 className="font-display text-4xl sm:text-6xl md:text-7xl tracking-tight">
-            Find your <em>carry</em>.
-          </h2>
-          <p className="mt-2 text-base text-muted-foreground reading-measure">
-            Tailored for the daily commute, the courthouse, or the open road.
-          </p>
-        </Reveal>
-        <div className="mt-12 grid gap-6 md:grid-cols-4 md:grid-rows-2">
-          {[
-            { p: products[0], cls: "md:col-span-2 md:row-span-2 aspect-[4/5] md:aspect-auto" },
-            { p: products[3], cls: "aspect-[4/5]" },
-            { p: products[5], cls: "aspect-[4/5]" },
-            { p: products[2], cls: "aspect-[4/5]" },
-            { p: products[4], cls: "aspect-[4/5]" },
-          ].map(({ p, cls }, i) => (
-            <Reveal key={p!.slug} delay={i * 90} className={cls}>
-              <Link
-                to="/bags"
-                className="group relative block h-full overflow-hidden rounded-2xl border border-border/50 bg-card shadow-md transition-all duration-500 hover:border-primary/50 hover:shadow-xl"
-              >
-                <img
-                  src={p!.image}
-                  alt={p!.alt}
-                  loading="lazy"
-                  width={1024}
-                  height={1280}
-                  className="h-full w-full object-cover transition-transform duration-[1400ms] ease-out group-hover:scale-108"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/25 to-transparent" />
-                <div className="absolute bottom-6 left-6 text-ink-foreground">
-                  <p className="font-display text-2xl sm:text-3xl tracking-tight">{p!.category}</p>
-                  <p className="mt-1 text-xs uppercase tracking-widest text-accent font-medium opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                    Explore collection →
-                  </p>
-                </div>
-              </Link>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* The Workshop Guarantee & Manifesto */}
-      <section className="border-y bg-card/40 py-20">
-        <div className="mx-auto max-w-[1500px] px-6 md:px-10">
-          <div className="mb-14 text-center">
-            <span className="eyebrow text-primary">Uncompromising Quality</span>
-            <h2 className="mt-3 font-display text-4xl sm:text-5xl italic tracking-tight">
-              The Workshop Standard
-            </h2>
-            <p className="mt-3 text-base text-muted-foreground reading-measure mx-auto">
-              The foundational benchmarks built into every hide we select, cut, and bevel.
-            </p>
-          </div>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                icon: ShieldCheck,
-                title: "Lifetime Repairs",
-                desc: "We mend what we make, free of charge, for the life of the owner. Any stitch, rivet, or strap.",
-                badge: "Lifetime Guarantee",
-              },
-              {
-                icon: Sparkles,
-                title: "Custom Monogram",
-                desc: "Complimentary heat-stamped initials debossed in 24k gold foil, polished silver, or blind.",
-                badge: "Complimentary",
-              },
-              {
-                icon: Globe,
-                title: "Worldwide Dispatch",
-                desc: "Carbon-neutral shipping direct from our workshop bench to your door, fully tracked.",
-                badge: "Carbon Neutral",
-              },
-              {
-                icon: RotateCcw,
-                title: "60-Day Trial",
-                desc: "Live with the leather, watch the grain settle, and ensure it fits your life before committing.",
-                badge: "Risk-Free Trial",
-              },
-            ].map((item, i) => (
-              <Reveal key={item.title} delay={i * 100} className="h-full">
-                <div className="flex h-full flex-col rounded-2xl border border-border/60 bg-card p-7 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg">
-                  <div className="grid h-12 w-12 place-items-center rounded-xl bg-primary/10 text-primary">
-                    <item.icon className="h-6 w-6" />
-                  </div>
-                  <h3 className="mt-5 font-display text-2xl tracking-tight text-foreground">
-                    {item.title}
-                  </h3>
-                  <p className="mt-2.5 text-[0.9375rem] leading-relaxed text-muted-foreground">
-                    {item.desc}
-                  </p>
-                  <span className="mt-auto pt-6 text-[11px] font-semibold uppercase tracking-widest text-primary/80">
-                    {item.badge}
-                  </span>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* New Arrivals */}
-      <section className="mx-auto max-w-[1500px] px-6 py-20 md:py-28 md:px-10">
-        <Reveal className="flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <h2 className="font-display text-4xl sm:text-6xl md:text-7xl tracking-tight">
-              New <em>arrivals</em>.
-            </h2>
-            <p className="mt-2 text-base text-muted-foreground reading-measure">
-              Fresh batches freshly conditioned and signed by the bench.
-            </p>
-          </div>
-          <Link to="/bags" className="link-line text-sm font-medium tracking-wide">
-            Shop new batch →
-          </Link>
-        </Reveal>
-        <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {products.slice(3).map((p, i) => (
-            <Reveal key={p.slug} delay={i * 120} className="h-full">
-              <ProductCard p={p} />
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      {/* Customer Words (Refined with International Client Citations) */}
-      <section className="grain bg-ink px-6 py-24 text-ink-foreground md:px-10">
+      <section className="grain bg-ink px-4 py-20 text-ink-foreground md:px-10 md:py-28">
         <div className="mx-auto max-w-[1500px]">
-          <span className="eyebrow text-accent">Client Testimonials</span>
-          <h2 className="mt-3 font-display text-4xl italic sm:text-5xl text-accent">
-            Words from the field
-          </h2>
-          <div className="mt-12 grid gap-8 md:grid-cols-3">
-            {[
-              [
-                "Ten years, three continents, and it only looks better with each flight. The single best investment piece I own.",
-                "Amelia R.",
-                "Heritage Satchel",
-                "London, UK",
-              ],
-              [
-                "You can feel the twelve hours of hand-stitching the moment you unbox it. The brass hardware patinas beautifully.",
-                "Daniel K.",
-                "Barrister Briefcase",
-                "Zurich, Switzerland",
-              ],
-              [
-                "They repaired a shoulder strap I broke on a hike, for free, within four days. Customers for life.",
-                "Sana M.",
-                "The Weekender Duffel",
-                "Tokyo, Japan",
-              ],
-            ].map(([q, n, b, city], i) => (
+          <h2 className="font-display text-5xl text-accent md:text-6xl">Words from the field</h2>
+          <div className="mt-12 grid gap-10 md:grid-cols-3 md:gap-8">
+            {testimonials.map((t, i) => (
               <Reveal
-                key={n}
-                delay={i * 150}
-                className="flex flex-col rounded-2xl border border-ink-foreground/15 bg-ink/50 p-8 backdrop-blur-xs"
+                key={t.name}
+                delay={i * 120}
+                className="flex flex-col border-t border-ink-foreground/20 pt-6"
               >
-                <div className="flex items-center gap-1 text-accent" aria-label="5 out of 5 stars">
-                  {Array.from({ length: 5 }).map((_, s) => (
-                    <Star key={s} className="h-4 w-4 fill-current" />
-                  ))}
-                </div>
-                <p className="mt-5 font-display text-2xl italic leading-snug sm:text-3xl text-balance">
-                  “{q}”
+                <blockquote className="font-display text-2xl leading-snug sm:text-3xl">
+                  “{t.quote}”
+                </blockquote>
+                <p className="mt-6 text-sm text-ink-foreground/70">
+                  {t.name}, {t.city} · {t.piece}
                 </p>
-                <div className="mt-auto border-t border-ink-foreground/15 pt-5">
-                  <div className="flex items-baseline justify-between text-xs">
-                    <span className="font-semibold tracking-wider uppercase text-ink-foreground">
-                      {n}
-                    </span>
-                    <span className="text-accent/90">{city}</span>
-                  </div>
-                  <p className="mt-1 text-[11px] opacity-60">{b} · Verified Owner</p>
-                </div>
               </Reveal>
             ))}
           </div>
         </div>
-      </section>
-
-      {/* Interactive Monogram Stamping Studio ("Make it yours") */}
-      <section className="mx-auto max-w-[1500px] px-6 py-20 md:py-28 md:px-10">
-        <div className="grid items-center gap-12 lg:gap-16 md:grid-cols-2">
-          <Reveal>
-            <span className="eyebrow text-primary">Personalized Atelier Craft</span>
-            <h2 className="mt-3 font-display text-4xl sm:text-5xl md:text-6xl leading-tight tracking-tight">
-              The <em>monogram</em> studio.
-            </h2>
-            <p className="mt-6 text-base sm:text-lg leading-relaxed text-muted-foreground reading-measure">
-              Personalize your piece with up to three initials, individually heated and debossed by
-              hand into the leather grain. Complimentary on every order.
-            </p>
-
-            {/* Interactive Customizer Controls */}
-            <div className="mt-8 space-y-6 rounded-2xl border border-border/60 bg-card p-7 shadow-xs">
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Your Initials (up to 3 letters)
-                </label>
-                <input
-                  type="text"
-                  maxLength={3}
-                  value={monogramInitials.replace(/\./g, "")}
-                  onChange={(e) => handleInitialsChange(e.target.value)}
-                  placeholder="e.g. AR"
-                  aria-label="Enter your initials for monogram preview"
-                  className="mt-2 w-full rounded-xl border border-border/80 bg-background px-4 py-3.5 text-xl font-semibold tracking-widest uppercase outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Stamping Finish
-                </label>
-                <div className="mt-2 flex gap-3">
-                  {[
-                    {
-                      id: "gold",
-                      label: "24k Gold Foil",
-                      cls: "bg-gradient-to-r from-amber-200 via-amber-400 to-amber-500 text-stone-900 font-semibold",
-                    },
-                    {
-                      id: "silver",
-                      label: "Polished Silver",
-                      cls: "bg-gradient-to-r from-slate-200 via-slate-300 to-slate-400 text-stone-900 font-semibold",
-                    },
-                    {
-                      id: "blind",
-                      label: "Blind Deboss",
-                      cls: "bg-ink/10 text-foreground font-semibold",
-                    },
-                  ].map((style) => (
-                    <button
-                      key={style.id}
-                      onClick={() => setFoilStyle(style.id as "gold" | "silver" | "blind")}
-                      className={cn(
-                        "flex-1 rounded-xl border px-3.5 py-2.5 text-xs transition-all shadow-xs",
-                        style.cls,
-                        foilStyle === style.id
-                          ? "ring-2 ring-primary ring-offset-2 scale-[1.02]"
-                          : "opacity-75 hover:opacity-100",
-                      )}
-                    >
-                      {style.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Live Deboss Leather Tag Preview */}
-              <div className="mt-6 flex flex-col items-center justify-center rounded-2xl bg-ink p-8 text-center text-ink-foreground shadow-inner">
-                <span className="text-[11px] uppercase tracking-widest opacity-60">
-                  Live Workshop Stamp Preview
-                </span>
-                <div className="relative mt-4 flex h-26 w-48 items-center justify-center rounded-xl border border-amber-900/40 bg-gradient-to-br from-[#4a2e1b] to-[#2c180b] shadow-2xl">
-                  {/* Decorative Stitch Border */}
-                  <div className="absolute inset-1.5 rounded-lg border border-dashed border-amber-200/25" />
-                  <span
-                    className={cn(
-                      "font-display text-4xl font-bold tracking-widest transition-all",
-                      foilStyle === "gold" &&
-                        "text-[#f8df8d] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] drop-shadow-[0_0_8px_rgba(245,208,97,0.4)]",
-                      foilStyle === "silver" &&
-                        "text-[#e2e8f0] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] drop-shadow-[0_0_8px_rgba(226,232,240,0.4)]",
-                      foilStyle === "blind" &&
-                        "text-[#1a0e06] drop-shadow-[0_-1px_1px_rgba(255,255,255,0.18)] drop-shadow-[0_2px_3px_rgba(0,0,0,0.9)]",
-                    )}
-                  >
-                    {monogramInitials || "H.H"}
-                  </span>
-                </div>
-                <p className="mt-3.5 text-xs opacity-65">
-                  Hand-stamped in 48 hours · Free with any bag purchase
-                </p>
-              </div>
-            </div>
-          </Reveal>
-
-          <Reveal delay={150}>
-            <div className="aspect-[4/5] overflow-hidden rounded-3xl border border-border/50 shadow-2xl">
-              <img
-                src={products[1]!.image}
-                alt="Dark chestnut leather briefcase with solid brass hardware"
-                loading="lazy"
-                className="h-full w-full object-cover transition-transform duration-[1500ms] hover:scale-105"
-              />
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* Press Quotations */}
-      <section className="border-t border-border/50 px-6 py-20 md:px-10">
-        <p className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          Recognized by international publications
-        </p>
-        <div className="mx-auto mt-10 flex max-w-5xl flex-wrap items-center justify-center gap-x-14 gap-y-6 font-display text-2xl italic opacity-75 md:text-3xl">
-          {[
-            "The Gentleman's Post",
-            "Atelier Weekly",
-            "Carry Magazine",
-            "Field & Form",
-            "The Courier Review",
-          ].map((n) => (
-            <span key={n} className="transition-opacity hover:opacity-100">
-              {n}
-            </span>
-          ))}
-        </div>
-      </section>
-
-      {/* Workshop Letters Newsletter */}
-      <section className="bg-primary px-6 py-24 text-primary-foreground md:px-10">
-        <Reveal className="mx-auto max-w-3xl text-center">
-          <span className="eyebrow text-primary-foreground/75">Private Dispatches</span>
-          <h2 className="mt-3 font-display text-4xl sm:text-6xl md:text-7xl">
-            Letters from the <em>workshop</em>.
-          </h2>
-          <p className="mt-6 text-base sm:text-lg opacity-90 reading-measure mx-auto">
-            New batch announcements, leather conditioning essays, and tales from the bench. Once a
-            month, never more.
-          </p>
-          {newsletterSubscribed ? (
-            <div className="mx-auto mt-8 rounded-xl bg-primary-foreground/15 p-4 text-sm font-medium backdrop-blur-xs">
-              ✓ Thank you. You have been added to our private workshop ledger.
-            </div>
-          ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (newsletterEmail) setNewsletterSubscribed(true);
-              }}
-              className="mx-auto mt-10 flex max-w-lg border-b border-primary-foreground/50 pb-1.5"
-            >
-              <input
-                type="email"
-                required
-                value={newsletterEmail}
-                onChange={(e) => setNewsletterEmail(e.target.value)}
-                placeholder="Enter your email address"
-                aria-label="Email address for workshop newsletter"
-                className="flex-1 bg-transparent py-4 text-base text-primary-foreground outline-none placeholder:text-primary-foreground/60"
-              />
-              <button
-                type="submit"
-                className="eyebrow px-4 transition-transform hover:translate-x-1"
-              >
-                Join Ledger →
-              </button>
-            </form>
-          )}
-          <p className="mt-4 text-xs opacity-65">
-            Carbon-neutral delivery updates · No promotional spam · Unsubscribe anytime
-          </p>
-        </Reveal>
       </section>
     </>
   );

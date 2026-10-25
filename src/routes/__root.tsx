@@ -13,7 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { StoreProvider } from "../lib/store";
-import { SiteHeader, SiteFooter, CartDrawer } from "../components/SiteChrome";
+import { SiteHeader, SiteFooter, CartDrawer, SavedDrawer } from "../components/SiteChrome";
 
 function NotFoundComponent() {
   return (
@@ -82,6 +82,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Hollow & Hide — Handcrafted Leather Bags" },
       { name: "description", content: "Handcrafted full-grain leather bags." },
+      { name: "theme-color", content: "#f9f6f1" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -104,11 +105,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" data-theme="saddle">
+    <html lang="en" data-theme="saddle" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("hh-theme");if(t==="system"||!t){var d=window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.dataset.theme=d?"midnight":"saddle";}else if(t){document.documentElement.dataset.theme=t;}}catch(e){}})();`,
+            __html: `(function(){var d=document.documentElement;d.classList.add("js");try{var t=localStorage.getItem("hh-theme");var dark=t==="espresso"||t==="midnight"||((!t||t==="system")&&window.matchMedia("(prefers-color-scheme: dark)").matches);d.dataset.theme=dark?"espresso":"saddle";}catch(e){}})();`,
           }}
         />
         <HeadContent />
@@ -133,6 +134,7 @@ function RootComponent() {
         </main>
         <SiteFooter />
         <CartDrawer />
+        <SavedDrawer />
       </StoreProvider>
     </QueryClientProvider>
   );

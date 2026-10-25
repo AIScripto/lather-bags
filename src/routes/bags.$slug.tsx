@@ -1,17 +1,28 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { useState } from "react";
-import { products } from "@/lib/products";
-import craft from "@/assets/craft.jpg";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Hammer, Package, RotateCcw, Truck, X, ZoomIn } from "lucide-react";
 import lifestyle from "@/assets/lifestyle.jpg";
-import { ProductCard } from "@/components/ProductCard";
-import { Reveal } from "@/components/Reveal";
-import { useStore } from "@/lib/store";
+import {
+  collectionOf,
+  findProduct,
+  formatSize,
+  pairingsFor,
+  shades,
+  type Product,
+  type Shade,
+} from "@/lib/products";
+import { deliveryWindow, formatPrice } from "@/lib/format";
+import { useStore, type Monogram } from "@/lib/store";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { cn } from "@/lib/utils";
-import { ZoomIn, Sparkles, ShieldCheck } from "lucide-react";
+import { ProductCard } from "@/components/ProductCard";
+import { LeatherSwatch, ProductMedia, ScaleDiagram } from "@/components/ProductMedia";
+import { MonogramPicker } from "@/components/Monogram";
+import { Reveal } from "@/components/Reveal";
 
 export const Route = createFileRoute("/bags/$slug")({
   loader: ({ params }) => {
-    const product = products.find((p) => p.slug === params.slug);
+    const product = findProduct(params.slug);
     if (!product) throw notFound();
     return { product };
   },
@@ -28,188 +39,239 @@ export const Route = createFileRoute("/bags/$slug")({
   component: Detail,
 });
 
-const tabs = ["Details", "Materials", "Care", "Patina"] as const;
-const tabText: Record<(typeof tabs)[number], string> = {
-  Details:
-    'Fits a 15" laptop and documents. Two internal drop pockets, solid brass key fob, adjustable bridle strap, and a reinforced top handle.',
-  Materials:
-    "Full-grain vegetable-tanned bridle leather, solid sand-cast brass hardware, hand-beveled edges, and waxed Irish linen thread.",
-  Care: "Wipe clean with a damp cloth. Condition with natural beeswax leather cream twice a year. Complimentary repairs for life.",
-  Patina:
-    "Arrives firm with a subtle natural wax bloom. Within six months, daily handling yields an authentic honey-caramel patina unique to your hands.",
+function Detail() {
+  const { product } = Route.useLoaderData();
+  // Keyed so shade, view and monogram reset when moving between products.
+  return <ProductDetail key={product.slug} p={product} />;
+}
+
+type ViewId = "studio" | "detail" | "drawing" | "shade" | "scale" | "carry";
+
+const viewLabels: Record<ViewId, string> = {
+  studio: "Studio",
+  detail: "Hardware",
+  drawing: "Pattern",
+  shade: "Leather",
+  scale: "To scale",
+  carry: "Carried",
 };
 
-function Detail() {
-  const { product: p } = Route.useLoaderData();
+const tabs = ["Details", "Materials", "Care"] as const;
+const care =
+  "Wipe with a dry cloth. Twice a year, work in a thin layer of beeswax leather balm and buff it off. If rain marks it, let it dry slowly away from a radiator. Anything torn or worn through, send it back: repairs are free for life.";
+
+const patinaStages = [
+  { upTo: 0, text: "Arrives firm, with a light wax bloom on the surface that rubs away in days." },
+  { upTo: 1, text: "The bloom has gone. Handles and edges start to take on a soft shine." },
+  {
+    upTo: 4,
+    text: "The colour deepens where your hands rest, and creases settle into your routine.",
+  },
+  { upTo: 10, text: "A deep, even burnish. Old scuffs have softened back into the grain." },
+];
+
+function ProductDetail({ p }: { p: Product }) {
   const { addToCart } = useStore();
-  const [color, setColor] = useState(p.colors[0]);
+  const photographed = !!p.image;
+  const views: ViewId[] = photographed
+    ? [
+        "studio",
+        "detail",
+        "shade",
+        "scale",
+        ...(p.slug === "the-heritage-satchel" ? (["carry"] as const) : []),
+      ]
+    : ["drawing", "shade", "scale"];
+
+  const [shade, setShade] = useState<Shade>(p.colors[0]!);
+  const [view, setView] = useState<ViewId>(views[0]!);
   const [tab, setTab] = useState<(typeof tabs)[number]>("Details");
-  const [pos, setPos] = useState({ x: 50, y: 50, on: false });
-  const [activeAngleIndex, setActiveAngleIndex] = useState(0);
+  const [wantsMonogram, setWantsMonogram] = useState(false);
+  const [monogram, setMonogram] = useState<Monogram>({ initials: "", foil: "gold" });
+  const [lightbox, setLightbox] = useState(false);
+  const [years, setYears] = useState(0);
+  const buyRef = useRef<HTMLButtonElement>(null);
+  const [buyVisible, setBuyVisible] = useState(true);
 
-  const gallery = [
-    { label: "Studio Silhouette", sub: "Primary View", src: p.image, alt: p.alt },
-    {
-      label: "Waxed Grain & Awl",
-      sub: "Workbench Macro",
-      src: craft,
-      alt: "Artisan hand-stitching with waxed linen thread",
-    },
-    {
-      label: "Living Scale",
-      sub: "On-Body Carry",
-      src: lifestyle,
-      alt: "Satchel on travel journey in natural sunlight",
-    },
-  ];
+  useEffect(() => {
+    const el = buyRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setBuyVisible(e?.isIntersecting ?? true));
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
-  const currentImage = gallery[activeAngleIndex] || gallery[0];
+  const chooseShade = (s: Shade) => {
+    setShade(s);
+    if (photographed) setView(s === p.colors[0] ? "studio" : "shade");
+  };
+
+  const add = () => addToCart(p, shade, wantsMonogram && monogram.initials ? monogram : undefined);
+  const collection = collectionOf(p.collection);
+  const stage = patinaStages.find((s) => years <= s.upTo) ?? patinaStages[3]!;
 
   return (
     <>
-      <section className="mx-auto grid max-w-[1500px] gap-12 px-6 pb-24 pt-32 md:grid-cols-[1.3fr_1fr] md:px-10">
+      <section className="mx-auto grid max-w-[1500px] gap-10 px-4 pb-20 pt-24 md:grid-cols-[1.2fr_1fr] md:gap-14 md:px-10 md:pt-32">
         <div>
-          {/* Main Visualizer with Loupe Magnifier */}
-          <div
-            className="group relative aspect-[4/5] cursor-zoom-in overflow-hidden rounded-3xl border bg-card shadow-2xl ring-1 ring-border/50"
-            onMouseMove={(e) => {
-              const r = e.currentTarget.getBoundingClientRect();
-              setPos({
-                x: ((e.clientX - r.left) / r.width) * 100,
-                y: ((e.clientY - r.top) / r.height) * 100,
-                on: true,
-              });
-            }}
-            onMouseLeave={() => setPos((s) => ({ ...s, on: false }))}
-          >
-            <img
-              src={currentImage.src}
-              alt={currentImage.alt}
-              width={1024}
-              height={1280}
-              className="h-full w-full object-cover transition-transform duration-200 will-change-transform"
-              style={{
-                transformOrigin: `${pos.x}% ${pos.y}%`,
-                transform: pos.on ? "scale(2.0)" : "scale(1)",
-              }}
-            />
-            {/* View Indicator Badge */}
-            <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-background/85 px-3 py-1.5 text-[11px] font-medium backdrop-blur shadow-xs">
-              <Sparkles className="h-3 w-3 text-primary" />
-              <span>{currentImage.label}</span>
-            </div>
-
-            {/* Loupe hint overlay */}
-            <div
-              className={cn(
-                "pointer-events-none absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-ink/80 px-3 py-1.5 text-[11px] font-medium text-ink-foreground backdrop-blur transition-opacity",
-                pos.on ? "opacity-100" : "opacity-0 md:group-hover:opacity-100",
-              )}
-            >
-              <ZoomIn className="h-3 w-3 text-accent" />
-              <span>
-                {pos.on ? "2.0× Loupe Magnifier Active" : "Hover to inspect leather grain"}
-              </span>
-            </div>
-          </div>
-
-          {/* Multi-Angle Studio Thumbnails Strip */}
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            {gallery.map((item, idx) => (
+          <Viewer p={p} view={view} shade={shade} onOpen={() => setLightbox(true)} />
+          <div className="no-scrollbar mt-3 flex gap-2 overflow-x-auto" aria-label="Views">
+            {views.map((v) => (
               <button
-                key={item.label}
-                onClick={() => setActiveAngleIndex(idx)}
+                key={v}
+                onClick={() => setView(v)}
+                aria-pressed={view === v}
                 className={cn(
-                  "group flex flex-col gap-1.5 rounded-2xl border p-2 text-left transition-all",
-                  activeAngleIndex === idx
-                    ? "border-primary bg-primary/5 ring-2 ring-primary/40 shadow-sm"
-                    : "border-border/60 hover:border-foreground/50 hover:bg-card/60",
+                  "w-[22%] min-w-[84px] shrink-0 overflow-hidden rounded-xl border text-left transition-colors md:w-auto md:flex-1",
+                  view === v
+                    ? "border-primary ring-1 ring-primary"
+                    : "border-border hover:border-foreground/40",
                 )}
               >
-                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-muted">
-                  <img
-                    src={item.src}
-                    alt={item.alt}
-                    className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                  />
+                <div className="aspect-square overflow-hidden bg-muted">
+                  <ViewContent p={p} view={v} shade={shade} />
                 </div>
-                <div className="px-1">
-                  <p className="truncate text-xs font-semibold text-foreground">{item.label}</p>
-                  <p className="text-[10px] text-muted-foreground">{item.sub}</p>
-                </div>
+                <span className="block px-2 py-1.5 text-[13px] text-muted-foreground">
+                  {viewLabels[v]}
+                </span>
               </button>
             ))}
           </div>
         </div>
-        <div className="md:sticky md:top-32 md:self-start">
-          <Link
-            to="/bags"
-            className="text-xs font-medium uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors"
-          >
-            ← Back to {p.category}
-          </Link>
-          <h1 className="mt-3 font-display text-4xl sm:text-5xl md:text-6xl leading-tight tracking-tight text-foreground">
-            {p.name}
-          </h1>
-          <div className="mt-3 flex items-baseline gap-3">
-            <span className="font-display text-3xl font-semibold text-primary tnum">
-              ${p.price}
-            </span>
-            <span className="text-xs uppercase tracking-wider text-muted-foreground">
-              USD · Complimentary worldwide shipping
-            </span>
-          </div>
-          <p className="mt-6 text-base sm:text-lg leading-relaxed text-muted-foreground reading-measure">
+
+        <div className="md:sticky md:top-28 md:self-start">
+          <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
+            <Link to="/bags" className="hover:text-foreground">
+              Shop
+            </Link>
+            <span className="mx-2">/</span>
+            <Link
+              to="/bags"
+              search={{ collection: p.collection }}
+              className="hover:text-foreground"
+            >
+              {collection.label}
+            </Link>
+          </nav>
+          <h1 className="mt-3 font-display text-5xl leading-[1.02] md:text-6xl">{p.name}</h1>
+          <p className="mt-3 font-display text-3xl text-primary tnum">
+            {formatPrice(p.price)}{" "}
+            <span className="font-sans text-sm text-muted-foreground">USD</span>
+          </p>
+          <p className="mt-5 max-w-[52ch] text-lg leading-relaxed text-muted-foreground">
             {p.blurb}
           </p>
 
-          <div className="mt-8">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Select Leather Shade — {color}
-            </span>
-            <div className="mt-3 flex flex-wrap gap-2.5">
+          <fieldset className="mt-8">
+            <legend className="text-sm">
+              <span className="font-medium">Leather</span>
+              <span className="text-muted-foreground"> · {shade}</span>
+            </legend>
+            <div className="mt-3 flex flex-wrap gap-2">
               {p.colors.map((c) => (
                 <button
                   key={c}
-                  onClick={() => setColor(c)}
+                  type="button"
+                  onClick={() => chooseShade(c)}
+                  aria-pressed={shade === c}
+                  aria-label={c}
+                  title={c}
                   className={cn(
-                    "min-h-[44px] rounded-xl border px-4 py-2 text-xs font-medium uppercase tracking-wider transition-all shadow-xs",
-                    color === c
-                      ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                      : "border-border/80 hover:border-foreground/60 bg-card/60",
+                    "grid h-11 w-11 place-items-center rounded-full transition-shadow",
+                    shade === c
+                      ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                      : "ring-1 ring-border hover:ring-foreground/40",
                   )}
                 >
-                  {c}
+                  <span className="h-8 w-8 rounded-full" style={{ background: shades[c].color }} />
                 </button>
               ))}
             </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              {shades[shade].note}
+              {photographed && shade !== p.colors[0] && (
+                <> Photographed in {p.colors[0]}; the leather view shows your shade.</>
+              )}
+            </p>
+          </fieldset>
+
+          <div className="mt-8 rounded-2xl border p-5">
+            <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4">
+              <span>
+                <span className="block font-medium">Add a monogram</span>
+                <span className="text-sm text-muted-foreground">
+                  Stamped by hand within 48 hours. Complimentary.
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={wantsMonogram}
+                onChange={(e) => setWantsMonogram(e.target.checked)}
+                className="h-5 w-5 shrink-0 accent-[var(--primary)]"
+              />
+            </label>
+            {wantsMonogram && (
+              <div className="mt-5 border-t pt-5">
+                <MonogramPicker value={monogram} onChange={setMonogram} />
+              </div>
+            )}
           </div>
 
           <button
-            onClick={() => addToCart(p, color)}
-            className="mt-8 w-full min-h-[54px] rounded-full bg-primary py-4 text-xs font-semibold uppercase tracking-widest text-primary-foreground shadow-xl transition-all hover:opacity-95 hover:shadow-2xl active:scale-[0.99]"
+            ref={buyRef}
+            onClick={add}
+            className="mt-6 min-h-14 w-full rounded-full bg-primary text-base font-medium text-primary-foreground shadow-[0_14px_30px_-16px_var(--primary)] transition-[opacity,transform] hover:opacity-95 active:scale-[0.99]"
           >
-            Add to Bag — ${p.price}
+            Add to bag · {formatPrice(p.price)}
           </button>
+          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+            <Truck className="h-4 w-4 shrink-0 text-primary" />
+            Order today, delivered {deliveryWindow()}. Free shipping.
+          </p>
 
-          <div className="mt-6 grid grid-cols-2 gap-3 rounded-2xl border border-border/60 bg-card/60 p-5 text-xs text-muted-foreground">
-            <div>✓ Hand-signed by single artisan</div>
-            <div>✓ Lifetime complimentary repairs</div>
-            <div>✓ Free monogram in 48 hours</div>
-            <div>✓ 60-day living trial guarantee</div>
-          </div>
+          <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-3 border-y py-5 text-sm">
+            {(
+              [
+                [Hammer, "Made by one artisan, signed inside"],
+                [Package, "Repairs free for life"],
+                [RotateCcw, "60 days to return it"],
+                [Truck, "Tracked, carbon-neutral shipping"],
+              ] as const
+            ).map(([Icon, text]) => (
+              <li key={text} className="flex items-start gap-2 text-muted-foreground">
+                <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                {text}
+              </li>
+            ))}
+          </ul>
 
-          <div className="mt-10 border-t border-border/50 pt-6">
-            <div className="flex gap-6 border-b border-border/40 pb-2">
+          <h2 className="mt-8 font-display text-2xl">Size and fit</h2>
+          <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            <Spec label="Dimensions" value={formatSize(p.specs.size)} />
+            <Spec label="Weight" value={p.specs.weight} />
+            {p.specs.capacity && <Spec label="Capacity" value={p.specs.capacity} />}
+            {p.specs.laptop && <Spec label="Laptop" value={p.specs.laptop} />}
+            <div className="col-span-2">
+              <dt className="text-muted-foreground">What fits</dt>
+              <dd className="mt-1">{p.specs.fits.join(" · ")}</dd>
+            </div>
+          </dl>
+
+          <div className="mt-8">
+            <div role="tablist" aria-label="About this piece" className="flex gap-6 border-b">
               {tabs.map((t) => (
                 <button
                   key={t}
+                  role="tab"
+                  id={`tab-${t}`}
+                  aria-selected={tab === t}
+                  aria-controls="tab-panel"
                   onClick={() => setTab(t)}
                   className={cn(
-                    "text-xs uppercase tracking-widest pb-2 transition-colors",
+                    "-mb-px min-h-11 border-b-2 text-sm transition-colors",
                     tab === t
-                      ? "border-b-2 border-primary font-semibold text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
+                      ? "border-primary font-medium text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {t}
@@ -217,31 +279,240 @@ function Detail() {
               ))}
             </div>
             <p
-              key={tab}
-              className="mt-6 animate-in fade-in slide-in-from-bottom-2 leading-relaxed text-base text-muted-foreground reading-measure"
+              id="tab-panel"
+              role="tabpanel"
+              aria-labelledby={`tab-${tab}`}
+              className="mt-5 max-w-[60ch] leading-relaxed text-muted-foreground"
             >
-              {tabText[tab]}
+              {tab === "Details" ? p.details : tab === "Materials" ? p.materials : care}
             </p>
           </div>
         </div>
       </section>
-      <section className="mx-auto max-w-[1500px] border-t px-6 py-24 md:px-10">
-        <Reveal>
-          <h2 className="font-display text-4xl md:text-5xl">
-            You may <em>also</em> like
-          </h2>
-        </Reveal>
-        <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {products
-            .filter((x) => x.slug !== p.slug)
-            .slice(0, 3)
-            .map((x, i) => (
-              <Reveal key={x.slug} delay={i * 120} className="h-full">
-                <ProductCard p={x} />
-              </Reveal>
-            ))}
+
+      <section className="border-y bg-card/50">
+        <div className="mx-auto grid max-w-[1500px] items-center gap-10 px-4 py-20 md:grid-cols-2 md:px-10 md:py-28">
+          <LeatherSwatch shade={shade} years={years} className="aspect-[5/4] rounded-2xl" />
+          <div>
+            <h2 className="font-display text-4xl md:text-6xl">How {shade.toLowerCase()} ages</h2>
+            <p className="mt-4 max-w-[52ch] text-muted-foreground">
+              Vegetable-tanned leather darkens with light and handling. Drag through the years to
+              see roughly where yours will be.
+            </p>
+            <label htmlFor="patina" className="mt-10 flex justify-between text-sm">
+              <span className="font-medium">
+                {years === 0 ? "New" : `${years} ${years === 1 ? "year" : "years"} of daily carry`}
+              </span>
+              <span className="text-muted-foreground">Illustrative</span>
+            </label>
+            <input
+              id="patina"
+              type="range"
+              min={0}
+              max={10}
+              step={1}
+              value={years}
+              onChange={(e) => setYears(Number(e.target.value))}
+              className="mt-3 w-full"
+            />
+            <p
+              className="mt-6 min-h-[3.5em] max-w-[52ch] text-lg leading-relaxed"
+              aria-live="polite"
+            >
+              {stage.text}
+            </p>
+          </div>
         </div>
       </section>
+
+      <section className="mx-auto max-w-[1500px] px-4 py-20 md:px-10 md:py-28">
+        <Reveal>
+          <h2 className="font-display text-4xl md:text-5xl">Complete the set</h2>
+          <p className="mt-3 text-muted-foreground">
+            Chosen by the workshop to go with the {p.name.replace(/^The /, "")}.
+          </p>
+        </Reveal>
+        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {pairingsFor(p).map((x, i) => (
+            <Reveal key={x.slug} delay={i * 90} className="h-full">
+              <ProductCard p={x} />
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      <div
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur-md transition-transform duration-300 md:hidden",
+          buyVisible ? "translate-y-full" : "translate-y-0",
+        )}
+        inert={buyVisible}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-display text-lg leading-tight">{p.name}</p>
+          <p className="text-sm text-muted-foreground">
+            {shade} · {formatPrice(p.price)}
+          </p>
+        </div>
+        <button
+          onClick={add}
+          className="min-h-12 shrink-0 rounded-full bg-primary px-6 text-sm font-medium text-primary-foreground"
+        >
+          Add to bag
+        </button>
+      </div>
+
+      {lightbox && p.image && (
+        <Lightbox
+          src={view === "carry" ? lifestyle : p.image}
+          alt={p.alt}
+          onClose={() => setLightbox(false)}
+        />
+      )}
     </>
+  );
+}
+
+function Spec({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 tnum">{value}</dd>
+    </div>
+  );
+}
+
+function ViewContent({ p, view, shade }: { p: Product; view: ViewId; shade: Shade }): ReactNode {
+  switch (view) {
+    case "studio":
+      return <ProductMedia product={p} sizes="eager" />;
+    case "detail":
+      return (
+        <img
+          src={p.image}
+          alt={`Close-up of the hardware and stitching on ${p.name}`}
+          className="h-full w-full object-cover"
+          style={{
+            objectPosition: p.detailFocus,
+            transform: "scale(2.4)",
+            transformOrigin: p.detailFocus,
+          }}
+        />
+      );
+    case "drawing":
+      return <ProductMedia product={p} shade={shade} />;
+    case "shade":
+      return (
+        <LeatherSwatch shade={shade} className="h-full w-full">
+          <span className="sr-only">{shade} leather sample</span>
+        </LeatherSwatch>
+      );
+    case "scale":
+      return (
+        <div className="paper grid h-full w-full place-items-center p-[10%]">
+          <ScaleDiagram product={p} />
+        </div>
+      );
+    case "carry":
+      return (
+        <img
+          src={lifestyle}
+          alt={`${p.name} carried on a walk in low sunlight`}
+          className="h-full w-full object-cover"
+        />
+      );
+  }
+}
+
+function Viewer({
+  p,
+  view,
+  shade,
+  onOpen,
+}: {
+  p: Product;
+  view: ViewId;
+  shade: Shade;
+  onOpen: () => void;
+}) {
+  const [loupe, setLoupe] = useState<{ x: number; y: number } | null>(null);
+  const zoomable = view === "studio" || view === "carry";
+
+  return (
+    <div className="relative aspect-[4/5] overflow-hidden rounded-2xl border bg-muted">
+      <div
+        className="h-full w-full transition-transform duration-200"
+        style={
+          zoomable && loupe
+            ? { transform: "scale(2)", transformOrigin: `${loupe.x}% ${loupe.y}%` }
+            : undefined
+        }
+      >
+        <ViewContent p={p} view={view} shade={shade} />
+      </div>
+      {view === "shade" && (
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/70 to-transparent p-6 text-ink-foreground">
+          <p className="font-display text-3xl">{shade}</p>
+          <p className="text-sm opacity-85">{shades[shade].note}</p>
+        </div>
+      )}
+      {zoomable && (
+        <button
+          onClick={onOpen}
+          onPointerMove={(e) => {
+            if (e.pointerType !== "mouse") return;
+            const r = e.currentTarget.getBoundingClientRect();
+            setLoupe({
+              x: ((e.clientX - r.left) / r.width) * 100,
+              y: ((e.clientY - r.top) / r.height) * 100,
+            });
+          }}
+          onPointerLeave={() => setLoupe(null)}
+          aria-label="Open full-size image"
+          className="absolute inset-0 cursor-zoom-in"
+        >
+          <span className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs text-foreground backdrop-blur">
+            <ZoomIn className="h-3.5 w-3.5" />
+            <span className="hidden md:inline">Hover to inspect · click to enlarge</span>
+            <span className="md:hidden">Tap to enlarge</span>
+          </span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useFocusTrap(true, ref, onClose);
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-label={alt}
+      className="fixed inset-0 z-[60] overflow-auto bg-ink/95 animate-in fade-in"
+    >
+      <button
+        onClick={onClose}
+        aria-label="Close image"
+        className="fixed right-4 top-4 z-10 grid h-12 w-12 place-items-center rounded-full bg-background text-foreground"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      <img
+        src={src}
+        alt={alt}
+        className="mx-auto min-h-full w-auto max-w-none object-contain md:max-w-full"
+      />
+    </div>
   );
 }
