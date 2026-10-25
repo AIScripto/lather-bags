@@ -82,7 +82,7 @@ function Index() {
           width={1920}
           height={1088}
           fetchPriority="high"
-          className="absolute inset-0 h-full w-full animate-in object-cover duration-[2500ms] zoom-in-105"
+          className="absolute inset-x-0 -top-[8%] h-[116%] w-full animate-in object-cover object-[center_top] translate-y-7 sm:translate-y-10 md:translate-y-14 duration-[2500ms] zoom-in-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-ink/95 via-ink/40 to-ink/20" />
         <div className="relative mx-auto flex h-full max-w-[1500px] flex-col justify-end px-4 pb-14 text-ink-foreground md:px-10 md:pb-16 lg:pb-20">
