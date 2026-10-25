@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="hh-leather" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#542813"/>
+      <stop offset="50%" stop-color="#3c1b0c"/>
+      <stop offset="100%" stop-color="#240f06"/>
+    </linearGradient>
+    <linearGradient id="hh-brass" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#faecc8"/>
+      <stop offset="35%" stop-color="#e5bd75"/>
+      <stop offset="70%" stop-color="#c99846"/>
+      <stop offset="100%" stop-color="#9a6920"/>
+    </linearGradient>
+  </defs>
+  <!-- Background Saddle Leather Squircle -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#hh-leather)" stroke="#683419" stroke-width="1"/>
+  
+  <!-- Artisan Hand-Stitch Perimeter -->
+  <rect x="6" y="6" width="52" height="52" rx="10" fill="none" stroke="#d4a359" stroke-width="1.2" stroke-dasharray="3.5 2.5" stroke-opacity="0.7"/>
+  
+  <!-- Cast Brass Monogram H -->
+  <g fill="url(#hh-brass)">
+    <!-- Left vertical stem with serifs -->
+    <path d="M17 20 h12 v3 h-4 v18 h4 v3 h-12 v-3 h4 v-18 h-4 z"/>
+    <!-- Right vertical stem with serifs -->
+    <path d="M35 20 h12 v3 h-4 v18 h4 v3 h-12 v-3 h4 v-18 h-4 z"/>
+    <!-- Connecting Crossbar -->
+    <path d="M25 30 h14 v4 h-14 z"/>
+    <!-- Center brass rivet highlight -->
+    <circle cx="32" cy="32" r="1.5" fill="#fff5dd"/>
+  </g>
+</svg>
