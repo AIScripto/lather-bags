@@ -74,8 +74,8 @@ function Index() {
 
   return (
     <>
-      {/* Hero Section — tighter height, elegant atelier kicker & trust anchors */}
-      <section className="relative h-[86svh] min-h-[580px] max-h-[860px] overflow-hidden">
+      {/* Hero Section — full visible screen, elegant atelier kicker & trust anchors */}
+      <section className="relative h-[100svh] min-h-[640px] overflow-hidden">
         <img
           src={hero}
           alt="Cognac leather satchel on stone in morning sunlight"
@@ -85,7 +85,7 @@ function Index() {
           className="absolute inset-0 h-full w-full animate-in object-cover duration-[2500ms] zoom-in-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-ink/95 via-ink/40 to-ink/20" />
-        <div className="relative mx-auto flex h-full max-w-[1500px] flex-col justify-end px-4 pb-12 text-ink-foreground md:px-10 md:pb-16">
+        <div className="relative mx-auto flex h-full max-w-[1500px] flex-col justify-end px-4 pb-14 text-ink-foreground md:px-10 md:pb-16 lg:pb-20">
           <div className="mb-4 inline-flex w-fit items-center gap-2 rounded-full border border-ink-foreground/20 bg-ink/40 px-3.5 py-1 text-xs uppercase tracking-widest text-accent backdrop-blur-md">
             <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
             <span>Cornwall Atelier · Est. 2014</span>
